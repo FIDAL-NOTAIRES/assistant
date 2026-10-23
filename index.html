@@ -157,6 +157,46 @@ section.niveau>h2 .barre{width:28px;height:4px}
 #note select{background:var(--nuit);border:1px solid var(--filet2);padding:.35rem .5rem;border-radius:0}
 #note .ligne{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
 
+.cache-vue{display:none!important}
+#app[data-vue="general"] .seul-outil{display:none!important}
+
+/* ASSISTANT GÉNÉRAL : programme du jour au centre, répertoire à droite */
+.general{display:grid;grid-template-columns:minmax(0,1fr) 19rem;gap:1.6rem;margin-top:1.2rem;align-items:start}
+.soustitre{display:flex;align-items:center;gap:.7rem;margin:0 0 .6rem;font:12px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--doux)}
+.soustitre::after{content:"";flex:1;height:1px;background:var(--filet)}
+.agenda{list-style:none;margin:.4rem 0 0;padding:0;border-left:1px solid var(--filet2)}
+.agenda li{position:relative;padding:.55rem 0 .65rem 1.1rem}
+.agenda li::before{content:"";position:absolute;left:-5px;top:1rem;width:9px;height:9px;background:var(--panneau);border:1px solid var(--cyan);transform:rotate(45deg)}
+.agenda li.passe{opacity:.5}
+.agenda li.encours::before{background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
+.agenda .heure{font:12px var(--mono);letter-spacing:.08em;color:var(--cyan)}
+.agenda .objet{font-weight:600;margin:.1rem 0 .3rem;overflow-wrap:anywhere}
+.agenda .lieu{font-size:13px;color:var(--doux)}
+.agenda .actions{margin-top:.35rem}
+.agenda .actions .btn{padding:.25rem .5rem;font-size:11px;text-decoration:none}
+.puce.dossier{border-color:var(--canard);color:#9fd9dd}
+.repertoire{position:sticky;top:1rem}
+.onglets{display:flex;flex-direction:column;gap:.35rem}
+.onglet{display:grid;grid-template-columns:1fr auto;align-items:center;gap:.2rem .5rem;text-align:left;background:var(--panneau);border:1px solid var(--filet);border-right:3px solid var(--filet2);padding:.5rem .6rem;cursor:pointer;width:100%}
+.onglet:hover{border-color:var(--filet2);border-right-color:var(--cyan)}
+.onglet[aria-selected="true"]{border-color:var(--cyan);border-right-color:var(--cyan);background:#12304a}
+.onglet .qui{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.onglet .qualite{grid-column:1;font:10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--doux)}
+.onglet .attente{grid-row:1 / span 2;grid-column:2;font:10.5px var(--mono);color:var(--orange);border:1px solid var(--orange);padding:0 .3rem}
+.redaction{margin-top:1.4rem;background:var(--panneau);border:1px solid var(--filet2);padding:1rem 1.1rem;position:relative}
+.redaction::before{content:"";position:absolute;top:-1px;left:-1px;width:12px;height:12px;border:solid var(--cyan);border-width:2px 0 0 2px}
+.redtete{display:flex;justify-content:space-between;align-items:baseline;gap:1rem}
+.redtete h3{font:normal 1.3rem Georgia,serif;margin:0 0 .7rem}
+.champs{display:grid;grid-template-columns:auto minmax(0,1fr);gap:.45rem .8rem;align-items:center}
+.champs label{font:11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--doux)}
+.champs input,.champs select,.redaction textarea,#contact input,#contact select{background:var(--nuit);border:1px solid var(--filet2);padding:.4rem .55rem;border-radius:0;width:100%;font:inherit;color:inherit}
+.redaction textarea{min-height:11rem;margin-top:.7rem;resize:vertical;line-height:1.55}
+.redaction .actions{margin-top:.7rem}
+.redaction .note{font-size:12.5px;color:var(--doux);margin:.6rem 0 0}
+#contact{position:fixed;inset:0;background:rgba(5,14,24,.85);z-index:35;display:flex;align-items:center;justify-content:center;padding:1rem}
+#contact .champs{margin:.6rem 0 1rem}
+
+@media (max-width:1040px){ .general{grid-template-columns:minmax(0,1fr)} .repertoire{position:static;min-width:0} .onglets{flex-direction:row;flex-wrap:nowrap;overflow-x:auto;padding-bottom:.3rem;scroll-snap-type:x proximity} .onglet{width:auto;min-width:11rem;flex:0 0 auto;scroll-snap-align:start} }
 @media (max-width:760px){
   #app{grid-template-columns:1fr}
   nav.bandeau{position:fixed;top:auto;bottom:0;left:0;right:0;height:auto;flex-direction:row;padding:.3rem .4rem calc(.3rem + env(safe-area-inset-bottom,0px));border-right:0;border-top:1px solid var(--filet);z-index:22;gap:.2rem}
@@ -197,9 +237,11 @@ section.niveau>h2 .barre{width:28px;height:4px}
       <span class="nom">Outil</span>
       <span class="voyants" aria-label="Voyants"><i class="voyant" id="vEtat" title="État général du service"></i><i class="voyant" id="vUrgence" title="Urgence"></i><i class="voyant" id="vNote" title="Points à reprendre sur PC"></i></span>
     </button>
-    <button class="case" type="button" aria-disabled="true" title="À venir">
-      <svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="#92A6B8" stroke-width="1.6"><path d="M24 3l18 10.5v21L24 45 6 34.5v-21z" stroke-opacity=".5"/><rect x="13" y="17" width="22" height="15"/><path d="M13 17l11 8.5L35 17"/></svg>
-      <span class="nom">Général</span><span class="avenir">à venir</span>
+    <button class="case" type="button" id="caseGeneral">
+      <span class="pastille cache" id="pastilleGeneral"></span>
+      <svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="#6DD5DC" stroke-width="1.6"><path d="M24 3l18 10.5v21L24 45 6 34.5v-21z" stroke-opacity=".55"/><rect x="13" y="17" width="22" height="15"/><path d="M13 17l11 8.5L35 17"/></svg>
+      <span class="nom">Général</span>
+      <span class="voyants" aria-label="Voyants"><i class="voyant" id="vEtatG" title="État général du service"></i><i class="voyant" id="vUrgenceG" title="Réponses dues"></i><i class="voyant" id="vNoteG" title="Rendez-vous du jour"></i></span>
     </button>
     <button class="case" type="button" aria-disabled="true" title="À venir">
       <svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="#92A6B8" stroke-width="1.6"><path d="M24 3l18 10.5v21L24 45 6 34.5v-21z" stroke-opacity=".5"/><path d="M14 18h8l2 2.5h10V32H14z"/><path d="M14 22.5h20"/></svg>
@@ -220,18 +262,19 @@ section.niveau>h2 .barre{width:28px;height:4px}
   <main>
     <header class="tete">
       <div>
-        <h1>Assistant outil</h1>
+        <h1 id="titreVue">Assistant outil</h1>
         <div class="date" id="date"></div>
       </div>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-        <button class="btn plein" type="button" id="lancerRevue">Revue</button>
-        <button class="btn" type="button" id="lancerVocal">Revue à voix haute</button>
-        <button class="btn" type="button" id="dicterNote">Dicter une note</button>
+        <button class="btn plein seul-outil" type="button" id="lancerRevue">Revue</button>
+        <button class="btn seul-outil" type="button" id="lancerVocal">Revue à voix haute</button>
+        <button class="btn seul-outil" type="button" id="dicterNote">Dicter une note</button>
         <button class="btn" type="button" id="actualiser">Actualiser</button>
         <button class="btn" type="button" id="verrouiller">Verrouiller</button>
       </div>
     </header>
 
+    <div id="vueOutil">
     <p class="annonce" id="annonce" aria-live="polite">Lecture du journal…</p>
     <p class="etatlecture" id="etatLecture"></p>
     <div id="rappels"></div>
@@ -256,6 +299,50 @@ section.niveau>h2 .barre{width:28px;height:4px}
     </div>
 
     <div id="liste"></div>
+    </div>
+
+    <div id="vueGeneral" class="cache-vue">
+      <p class="annonce" id="annonceG" aria-live="polite"></p>
+      <div class="general">
+        <section aria-labelledby="titreJour">
+          <h2 class="soustitre" id="titreJour">Programme du jour</h2>
+          <p class="etatlecture" id="etatAgenda"></p>
+          <ol class="agenda" id="agenda"></ol>
+
+          <section id="redaction" class="redaction cache" aria-labelledby="redTitre">
+            <div class="redtete"><h3 id="redTitre"></h3><button class="btn" type="button" id="redFermer">Fermer</button></div>
+            <div class="champs">
+              <label for="redA">À</label><input id="redA" type="text" autocomplete="off">
+              <label for="redCc">Copie</label><input id="redCc" type="text" autocomplete="off" placeholder="facultatif">
+              <label for="redObjet">Objet</label><input id="redObjet" type="text" autocomplete="off">
+              <label for="redQualite">Formule</label>
+              <select id="redQualite">
+                <option value="confrere">Mon cher confrère / Ma chère consœur</option>
+                <option value="client">Cher Monsieur / Chère Madame</option>
+                <option value="prenom_vous">Cher + prénom, en vous vouvoyant</option>
+                <option value="prenom_tu">Cher + prénom, en tutoyant</option>
+                <option value="collegue">Bonjour + prénom (étude)</option>
+                <option value="aucune">Aucune formule</option>
+              </select>
+            </div>
+            <textarea id="redCorps" aria-label="Texte du message" placeholder="Dictez ou tapez le message ; la formule d’appel et la formule de politesse s’ajoutent seules."></textarea>
+            <div class="actions">
+              <button class="btn" type="button" id="redDicter">Dicter</button>
+              <button class="btn plein" type="button" id="redOutlook">Ouvrir le brouillon dans Outlook</button>
+              <button class="btn" type="button" id="redWeb">Outlook en ligne</button>
+            </div>
+            <p class="note">Le message s’ouvre en brouillon, avec votre signature habituelle : rien ne part sans votre clic sur « Envoyer ».</p>
+          </section>
+        </section>
+
+        <aside class="repertoire" aria-labelledby="titreRep">
+          <h2 class="soustitre" id="titreRep">Correspondants</h2>
+          <p class="etatlecture" id="etatRepertoire"></p>
+          <div class="onglets" id="onglets" role="tablist" aria-label="Correspondants"></div>
+          <p style="margin-top:.7rem"><button class="btn" type="button" id="ajouterContact">Ajouter un correspondant</button></p>
+        </aside>
+      </div>
+    </div>
   </main>
 </div>
 
@@ -304,10 +391,25 @@ section.niveau>h2 .barre{width:28px;height:4px}
   </form>
 </div>
 
+<div id="contact" class="cache" role="dialog" aria-modal="true" aria-labelledby="contactTitre">
+  <form class="boite" id="formContact" style="max-width:30rem">
+    <h1 id="contactTitre">Ajouter un correspondant</h1>
+    <div class="champs">
+      <label for="cNom">Nom</label><input id="cNom" type="text" required>
+      <label for="cAdresse">Adresse</label><input id="cAdresse" type="email" required>
+      <label for="cPrenom">Prénom</label><input id="cPrenom" type="text">
+      <label for="cCivilite">Civilité</label><select id="cCivilite"><option>Monsieur</option><option>Madame</option></select>
+      <label for="cQualite">Formule</label><select id="cQualite"><option value="confrere">Confrère</option><option value="client">Client ou partenaire</option><option value="prenom_vous">Prénom, vouvoiement</option><option value="prenom_tu">Prénom, tutoiement</option><option value="collegue">Étude</option></select>
+    </div>
+    <div class="erreur" id="contactErreur" role="alert"></div>
+    <div class="ligne" style="display:flex;gap:.5rem"><button class="btn plein" type="submit">Ajouter</button><button class="btn" type="button" id="contactAnnuler">Annuler</button></div>
+  </form>
+</div>
+
 <div id="toast" class="cache" role="status"><span id="toastTexte"></span><button class="btn" type="button" id="toastAnnuler">Annuler</button></div>
 
 <script>
-/* ASSISTANT — lot 2 : ASSISTANT OUTIL + revue du matin, revue à voix haute, notes dictées, rappels (23/10/2026).
+/* ASSISTANT — lot 3 : ASSISTANT OUTIL (tableau de bord, revue, voix, notes, rappels) + ASSISTANT GÉNÉRAL (23/10/2026).
    Les points viennent du dossier Drive « ASSISTANT – journal », où Claude dépose pendant les sessions des fichiers
    JSON « journal-AAAA-MM-JJ-NN.json ». Le Drive ne s'écrit pas par-dessus : chaque session ajoute un fichier, et un
    point repris dans un fichier plus récent (même identifiant) met à jour l'ancien. Format v1 :
@@ -331,6 +433,7 @@ var JOUR = 86400000;
 var RAISONS = { panne: 'service en panne', echeance: 'échéance proche', blocage: 'bloque d’autres points' };
 
 var points = {}, applis = {}, etats = {}, notes = [], rappels = [], incidents = null, lectureOk = false;
+var agenda = null, repertoire = null, contacts = [], dossiers = [];
 var filtre = { appli: '', theme: '', urgence: '', lieu: '' };
 var dernierGeste = null, minuterieToast = null;
 
@@ -339,6 +442,7 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function
 function jourCourt(iso) { var d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }); }
 function debutJour(iso) { var d = new Date(String(iso).slice(0, 10) + 'T00:00:00'); return isNaN(d) ? null : d; }
 function pluriel(n, un, plus) { return n + ' ' + (n > 1 ? plus : un); }
+function aujourdhui() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 
 /* ---------- serveur ---------- */
 function api(methode, donnees) {
@@ -446,7 +550,16 @@ function lireJournal() {
     var q2 = "'" + r.files[0].id + "' in parents and trashed = false and name contains '.json'";
     return appelRelais({ op: 'chercher', q: q2, fields: 'files(id,name,createdTime)', orderBy: 'createdTime', pageSize: 500 });
   }).then(function (r) {
-    var fichiers = (r.files || []).slice().sort(function (x, y) { return String(x.createdTime).localeCompare(String(y.createdTime)); });
+    var tous = (r.files || []).slice().sort(function (x, y) { return String(x.createdTime).localeCompare(String(y.createdTime)); });
+    /* journal-… : tous les lots ; agenda-AAAA-MM-JJ… : le plus récent du jour ; repertoire-… : le plus récent */
+    var fichiers = tous.filter(function (f) { return f.name.indexOf('agenda-') !== 0 && f.name.indexOf('repertoire-') !== 0; });
+    var jourIso = aujourdhui();
+    var ag = tous.filter(function (f) { return f.name.indexOf('agenda-' + jourIso) === 0; }).pop();
+    var rep = tous.filter(function (f) { return f.name.indexOf('repertoire-') === 0; }).pop();
+    agenda = null; repertoire = null;
+    var annexes = [];
+    if (ag) annexes.push(appelRelais({ op: 'lire', id: ag.id }).then(function (t) { try { agenda = JSON.parse(t); } catch (e) { agenda = null; } }, function () {}));
+    if (rep) annexes.push(appelRelais({ op: 'lire', id: rep.id }).then(function (t) { try { repertoire = JSON.parse(t); } catch (e) { repertoire = null; } }, function () {}));
     var lots = [], illisibles = 0;
     return fichiers.reduce(function (p, f) {
       return p.then(function () {
@@ -454,7 +567,7 @@ function lireJournal() {
           try { lots.push(JSON.parse(t)); } catch (e) { illisibles++; }
         }, function () { illisibles++; });
       });
-    }, Promise.resolve()).then(function () {
+    }, Promise.resolve()).then(function () { return Promise.all(annexes); }).then(function () {
       var m = fusionner(lots);
       points = m.points; applis = m.applis; lectureOk = true;
       $('accord').classList.add('cache');
@@ -472,6 +585,8 @@ function lireEtats() {
     (j.etats || []).forEach(function (e) { etats[e.point_id] = e; });
     notes = j.notes || [];
     rappels = j.rappels || [];
+    contacts = j.contacts || [];
+    dossiers = j.dossiers || [];
     afficherRappels(); programmerRappels();
   });
 }
@@ -593,6 +708,7 @@ function afficher() {
   var l = $('liste');
   if (!l.dataset.allume && vus.length) { l.dataset.allume = '1'; l.classList.add('allume'); setTimeout(function () { l.classList.remove('allume'); }, 900); }
   l.innerHTML = html;
+  afficherGeneral();
 }
 function carte(v) {
   var p = v.p, a = applis[v.appli] || {};
@@ -918,6 +1034,195 @@ $('formNote').addEventListener('submit', function (ev) {
 $('lancerRevue').addEventListener('click', function () { ouvrirRevue(false); });
 $('lancerVocal').addEventListener('click', function () { ouvrirRevue(true); });
 
+/* ---------- ASSISTANT GÉNÉRAL (lot 3, 23/10/2026) ----------
+   Programme du jour : fichier « agenda-AAAA-MM-JJ-….json » du dossier Drive « ASSISTANT – journal »
+     { "version": 1, "date": "AAAA-MM-JJ", "releve_le": "…ISO…",
+       "evenements": [ { "debut": "…ISO…", "fin": "…ISO…", "objet": "…", "lieu": "…", "lien": "https://outlook…" } ] }
+   Répertoire : fichier « repertoire-….json » du même dossier
+     { "version": 1, "periode": "…", "contacts": [ { "adresse": "…", "nom": "…", "prenom": "…", "civilite": "Madame" | "Monsieur",
+       "qualite": "confrere" | "client" | "prenom_vous" | "prenom_tu" | "collegue", "envois": 12, "attente_depuis": "AAAA-MM-JJ" } ] }
+   Les changements de JFD (ajout, retrait, formule corrigée) sont gardés dans Neon (assistant_contact).
+   Les deux fichiers seront écrits par le pont des mails ; tant qu'il ne tourne pas, Claude les dépose pendant les sessions.
+   Les formules d'appel et de politesse reprennent celles de JFD dans ses envois. Le message s'ouvre en BROUILLON dans
+   Outlook (tant que Genapi n'a pas donné son accord, l'ASSISTANT n'envoie rien lui-même). */
+var SUIVI_ADRESSE = 'https://suivi-pi-orcin.vercel.app';
+var QUALITES = { confrere: 'Confrère', client: 'Client ou partenaire', prenom_vous: 'Prénom, vouvoiement', prenom_tu: 'Prénom, tutoiement', collegue: 'Étude', aucune: 'Sans formule' };
+var vue = 'outil', contactOuvert = null;
+function formuleAppel(c, q) {
+  var f = c.civilite === 'Madame', pr = c.prenom || '';
+  switch (q) {
+    case 'confrere': return f ? 'Ma chère consœur,' : 'Mon cher confrère,';
+    case 'client': return f ? 'Chère Madame,' : 'Cher Monsieur,';
+    case 'prenom_vous': case 'prenom_tu': return (f ? 'Chère ' : 'Cher ') + pr + ',';
+    case 'collegue': return 'Bonjour ' + pr + ',';
+    default: return '';
+  }
+}
+function formulePolitesse(c, q) {
+  switch (q) {
+    case 'confrere': return 'Je vous prie de me croire.\nVotre bien dévoué confrère,';
+    case 'client': case 'prenom_vous': return 'Restant à votre disposition, je vous souhaite une bonne journée.';
+    case 'prenom_tu': return 'Bien à toi,';
+    case 'collegue': return 'Bonne journée.';
+    default: return '';
+  }
+}
+function qualiteParDefaut(adresse) {
+  var a = String(adresse || '').toLowerCase();
+  if (/@fidal\.notaires\.fr$/.test(a)) return 'collegue';
+  if (/@[^@]*notaires\.fr$/.test(a)) return 'confrere';
+  return 'client';
+}
+function lesContacts() {
+  var parAdresse = {}, ordre = [];
+  ((repertoire && repertoire.contacts) || []).forEach(function (c) {
+    if (!c || !c.adresse) return; var a = String(c.adresse).toLowerCase();
+    if (!parAdresse[a]) ordre.push(a);
+    parAdresse[a] = Object.assign({}, c, { adresse: a });
+  });
+  contacts.forEach(function (n) {
+    var a = n.adresse, base = parAdresse[a];
+    if (!base) { if (!n.ajoute) return; base = { adresse: a }; ordre.push(a); }
+    ['nom', 'qualite', 'civilite', 'prenom'].forEach(function (k) { if (n[k]) base[k] = n[k]; });
+    base.masque = !!n.masque; parAdresse[a] = base;
+  });
+  return ordre.map(function (a) { return parAdresse[a]; }).filter(function (c) { return c && !c.masque; })
+    .map(function (c) { if (!c.qualite) c.qualite = qualiteParDefaut(c.adresse); return c; });
+}
+function joursDepuis(iso) { var d = debutJour(iso); return d ? Math.floor((debutJour(aujourdhui()) - d) / JOUR) : 0; }
+function normalTexte(t) { return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+/* rapprochement d'un rendez-vous et d'un dossier ouvert de SUIVI, par le nom des parties cité dans l'objet */
+function dossierDe(objet) {
+  var o = ' ' + normalTexte(objet) + ' ';
+  var trouve = null;
+  dossiers.some(function (d) {
+    return [d.partie1, d.partie2].some(function (pt) {
+      var n = normalTexte(pt).replace(/\b(sci|sas|sasu|sarl|sa|snc|scp|succession)\b/g, ' ').replace(/\s+/g, ' ').trim();
+      if (n.length >= 4 && o.indexOf(' ' + n + ' ') >= 0) { trouve = d; return true; }
+      return false;
+    });
+  });
+  return trouve;
+}
+function heureDe(iso) { var d = new Date(iso); var m = d.getMinutes(); return isNaN(d) ? '' : d.getHours() + ' h' + (m ? ' ' + String(m).padStart(2, '0') : ''); }
+function afficherGeneral() {
+  var maintenant = new Date();
+  /* programme du jour */
+  var ev = (agenda && agenda.date === aujourdhui() && Array.isArray(agenda.evenements)) ? agenda.evenements.slice() : null;
+  if (ev) ev.sort(function (a, b) { return String(a.debut).localeCompare(String(b.debut)); });
+  var restants = ev ? ev.filter(function (e) { return new Date(e.fin || e.debut) > maintenant; }).length : 0;
+  $('etatAgenda').textContent = !lectureOk ? 'Lecture du Drive en cours…' : (ev ? 'Agenda relevé à ' + (agenda.releve_le ? heureDe(agenda.releve_le) : '—') + '. Les changements faits depuis dans Outlook apparaîtront au prochain relevé.' : 'Aucun relevé d’agenda pour aujourd’hui : il sera déposé par le pont des mails, ou par Claude pendant une session.');
+  $('agenda').innerHTML = (ev || []).map(function (e) {
+    var debut = new Date(e.debut), fin = new Date(e.fin || e.debut);
+    var cls = fin <= maintenant ? 'passe' : (debut <= maintenant ? 'encours' : '');
+    var d = dossierDe(e.objet);
+    return '<li class="' + cls + '"><div class="heure">' + esc(heureDe(e.debut)) + (e.fin ? ' – ' + esc(heureDe(e.fin)) : '') + (cls === 'encours' ? ' · en cours' : '') + '</div>'
+      + '<div class="objet">' + esc(e.objet || '(sans objet)') + '</div>'
+      + (e.lieu ? '<div class="lieu">' + esc(e.lieu) + '</div>' : '')
+      + '<div class="actions">' + (d ? '<span class="puce dossier">dossier SUIVI : ' + esc(d.intitule) + '</span> <a class="btn" href="' + SUIVI_ADRESSE + '" target="_blank" rel="noopener">Ouvrir SUIVI</a> ' : '')
+      + (/^https:\/\//.test(e.lien || '') ? '<a class="btn" href="' + esc(e.lien) + '" target="_blank" rel="noopener">Ouvrir dans Outlook</a>' : '') + '</div></li>';
+  }).join('') || (ev ? '<li class="passe"><div class="objet">Aucun rendez-vous aujourd’hui.</div></li>' : '');
+
+  /* répertoire */
+  var cs = lesContacts();
+  var dus = cs.filter(function (c) { return c.attente_depuis && joursDepuis(c.attente_depuis) > 2; });
+  $('etatRepertoire').textContent = repertoire ? (repertoire.periode ? 'Classement : ' + repertoire.periode + '.' : '') : (lectureOk ? 'Aucun répertoire déposé pour l’instant.' : '');
+  $('onglets').innerHTML = cs.map(function (c) {
+    var j = c.attente_depuis ? joursDepuis(c.attente_depuis) : 0;
+    return '<button class="onglet" type="button" role="tab" aria-selected="' + (contactOuvert === c.adresse) + '" data-contact="' + esc(c.adresse) + '" title="' + esc(c.adresse) + '">'
+      + '<span class="qui">' + esc(c.nom || c.adresse) + '</span>'
+      + (j > 2 ? '<span class="attente" title="Réponse due depuis ' + j + ' jours">' + j + ' j</span>' : '')
+      + '<span class="qualite">' + esc(QUALITES[c.qualite] || '') + '</span></button>';
+  }).join('');
+
+  $('annonceG').innerHTML = ev ? '<strong>' + pluriel(restants, 'rendez-vous à venir', 'rendez-vous à venir') + '</strong> aujourd’hui' + (dus.length ? ', et ' + pluriel(dus.length, 'correspondant attend', 'correspondants attendent') + ' une réponse depuis plus de deux jours.' : '.')
+    : (dus.length ? '<strong>' + pluriel(dus.length, 'correspondant attend', 'correspondants attendent') + '</strong> une réponse depuis plus de deux jours.' : 'Programme du jour et correspondants.');
+
+  /* bandeau : pastille = réponses dues ; voyants = services, réponses dues, rendez-vous restants */
+  var pg = $('pastilleGeneral');
+  pg.textContent = dus.length; pg.className = 'pastille' + (dus.length ? ' orange' : ' cache');
+  voyant($('vEtatG'), incidents === null ? '' : (incidents.length ? 'rouge' : 'vert'), $('vEtat').title);
+  voyant($('vUrgenceG'), dus.length ? 'orange' : 'vert', dus.length ? pluriel(dus.length, 'réponse due', 'réponses dues') : 'Aucune réponse due');
+  voyant($('vNoteG'), ev ? (restants ? 'orange' : 'vert') : '', ev ? pluriel(restants, 'rendez-vous à venir', 'rendez-vous à venir') : 'Agenda non relevé');
+}
+function ouvrirRedaction(adresse) {
+  var c = lesContacts().filter(function (x) { return x.adresse === adresse; })[0]; if (!c) return;
+  contactOuvert = adresse;
+  $('redTitre').textContent = 'Message à ' + (c.nom || c.adresse);
+  $('redA').value = c.adresse; $('redCc').value = ''; $('redObjet').value = ''; $('redCorps').value = '';
+  $('redQualite').value = c.qualite || qualiteParDefaut(c.adresse);
+  $('redaction').classList.remove('cache');
+  afficherGeneral();
+  if ($('redaction').scrollIntoView) $('redaction').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  $('redObjet').focus();
+}
+function texteComplet() {
+  var c = lesContacts().filter(function (x) { return x.adresse === contactOuvert; })[0] || {};
+  var q = $('redQualite').value;
+  return [formuleAppel(c, q), $('redCorps').value.trim(), formulePolitesse(c, q)].filter(Boolean).join('\n\n');
+}
+function adressesDe(v) { return String(v || '').split(/[\s,;]+/).filter(function (x) { return /@/.test(x); }).join(','); }
+function ouvrirBrouillon(enLigne) {
+  var a = adressesDe($('redA').value);
+  if (!a) { montrerToast('Indiquez au moins un destinataire.', true); return; }
+  var cc = adressesDe($('redCc').value), objet = $('redObjet').value.trim(), corps = texteComplet();
+  var url;
+  if (enLigne) url = 'https://outlook.office.com/mail/deeplink/compose?to=' + encodeURIComponent(a) + (cc ? '&cc=' + encodeURIComponent(cc) : '') + '&subject=' + encodeURIComponent(objet) + '&body=' + encodeURIComponent(corps);
+  else url = 'mailto:' + a.split(',').map(encodeURIComponent).join(',') + '?' + [cc ? 'cc=' + encodeURIComponent(cc) : '', 'subject=' + encodeURIComponent(objet), 'body=' + encodeURIComponent(corps.replace(/\n/g, '\r\n'))].filter(Boolean).join('&');
+  if (enLigne) window.open(url, '_blank', 'noopener'); else window.location.href = url;
+}
+function montrerVue(v) {
+  vue = v === 'general' ? 'general' : 'outil';
+  $('app').setAttribute('data-vue', vue);
+  $('vueOutil').classList.toggle('cache-vue', vue !== 'outil');
+  $('vueGeneral').classList.toggle('cache-vue', vue !== 'general');
+  $('caseOutil').classList.toggle('actif', vue === 'outil'); $('caseGeneral').classList.toggle('actif', vue === 'general');
+  if (vue === 'outil') { $('caseOutil').setAttribute('aria-current', 'page'); $('caseGeneral').removeAttribute('aria-current'); }
+  else { $('caseGeneral').setAttribute('aria-current', 'page'); $('caseOutil').removeAttribute('aria-current'); }
+  $('titreVue').textContent = vue === 'general' ? 'Assistant général' : 'Assistant outil';
+  document.title = (vue === 'general' ? 'Assistant général' : 'Assistant outil') + ' — FIDAL Notaires';
+  if (vue === 'general') afficherGeneral();
+}
+$('caseOutil').addEventListener('click', function () { location.hash = 'outil'; });
+$('caseGeneral').addEventListener('click', function () { location.hash = 'general'; });
+window.addEventListener('hashchange', function () { montrerVue(location.hash.slice(1)); });
+$('onglets').addEventListener('click', function (ev) { var b = ev.target.closest('[data-contact]'); if (b) ouvrirRedaction(b.getAttribute('data-contact')); });
+$('redFermer').addEventListener('click', function () { $('redaction').classList.add('cache'); contactOuvert = null; afficherGeneral(); });
+$('redOutlook').addEventListener('click', function () { ouvrirBrouillon(false); });
+$('redWeb').addEventListener('click', function () { ouvrirBrouillon(true); });
+/* la formule choisie pour un correspondant est retenue pour les fois suivantes */
+$('redQualite').addEventListener('change', function () {
+  if (!contactOuvert) return;
+  var q = this.value;
+  api('POST', { action: 'contact', adresse: contactOuvert, qualite: q }).then(function (j) {
+    contacts = contacts.filter(function (x) { return x.adresse !== j.contact.adresse; }).concat([j.contact]); afficherGeneral();
+  }).catch(erreurGeste);
+});
+$('redDicter').addEventListener('click', function () {
+  var R = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!R) { montrerToast('Ce navigateur n’offre pas la reconnaissance de la voix.', true); return; }
+  var r = new R(); r.lang = 'fr-FR'; r.interimResults = false; r.continuous = true;
+  var b = $('redDicter'); b.textContent = 'À vous… (cliquez pour finir)';
+  var fin = function () { b.textContent = 'Dicter'; b.onclick = null; };
+  r.onresult = function (e) {
+    for (var k = e.resultIndex; k < e.results.length; k++) if (e.results[k].isFinal) {
+      var t = e.results[k][0].transcript.trim(); var cur = $('redCorps').value;
+      $('redCorps').value = cur + (cur && !/\s$/.test(cur) ? ' ' : '') + t.charAt(0).toUpperCase() + t.slice(1) + (/[.?!]$/.test(t) ? '' : '.');
+    }
+  };
+  r.onend = fin; r.onerror = fin;
+  b.onclick = function (ev) { ev.stopImmediatePropagation(); try { r.stop(); } catch (e) {} fin(); };
+  try { r.start(); } catch (e) { fin(); }
+});
+$('ajouterContact').addEventListener('click', function () { $('formContact').reset(); $('contactErreur').textContent = ''; $('contact').classList.remove('cache'); $('cNom').focus(); });
+$('contactAnnuler').addEventListener('click', function () { $('contact').classList.add('cache'); });
+$('formContact').addEventListener('submit', function (ev) {
+  ev.preventDefault();
+  api('POST', { action: 'contact', adresse: $('cAdresse').value, nom: $('cNom').value, prenom: $('cPrenom').value, civilite: $('cCivilite').value, qualite: $('cQualite').value, ajoute: true })
+    .then(function (j) { contacts = contacts.filter(function (x) { return x.adresse !== j.contact.adresse; }).concat([j.contact]); $('contact').classList.add('cache'); afficherGeneral(); montrerToast('Correspondant ajouté.', true); },
+      function (e) { $('contactErreur').textContent = 'Ajout impossible : ' + e.message; });
+});
+
 /* ---------- accès et chargement ---------- */
 function verrouiller(message) {
   sessionStorage.removeItem(CLE);
@@ -996,9 +1301,10 @@ Array.prototype.forEach.call(document.querySelectorAll('.zone'), function (z) {
 setInterval(function () { if (sessionStorage.getItem(CLE) && !document.hidden) charger(); }, 15 * 60000);
 document.addEventListener('visibilitychange', function () { if (!document.hidden && sessionStorage.getItem(CLE) && lectureOk) Promise.all([lireEtats(), lireIncidents()]).then(afficher, function () {}); });
 
+montrerVue(location.hash.slice(1));
 if (sessionStorage.getItem(CLE)) charger(); else verrouiller('');
 
-window._assistant = { evaluer: evaluer, fusionner: fusionner, lireCommande: lireCommande, lireNote: lireNote, lireHeure: lireHeure, ordonner: ordonner, etats: function () { return etats; }, poser: function (p, a, e) { points = p; applis = a || {}; etats = e || {}; lectureOk = true; afficher(); } };
+window._assistant = { formuleAppel: formuleAppel, formulePolitesse: formulePolitesse, qualiteParDefaut: qualiteParDefaut, dossierDe: dossierDe, texteComplet: texteComplet, poserGeneral: function (ag, rep, ct, ds) { agenda = ag; repertoire = rep; contacts = ct || []; dossiers = ds || []; afficherGeneral(); }, evaluer: evaluer, fusionner: fusionner, lireCommande: lireCommande, lireNote: lireNote, lireHeure: lireHeure, ordonner: ordonner, etats: function () { return etats; }, poser: function (p, a, e) { points = p; applis = a || {}; etats = e || {}; lectureOk = true; afficher(); } };
 })();
 </script>
 </body>

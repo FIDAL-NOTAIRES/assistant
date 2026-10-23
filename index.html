@@ -327,11 +327,12 @@ section.niveau>h2 .barre{width:28px;height:4px}
             </div>
             <textarea id="redCorps" aria-label="Texte du message" placeholder="Dictez ou tapez le message ; la formule d’appel et la formule de politesse s’ajoutent seules."></textarea>
             <div class="actions">
+              <label class="mono" style="font-size:11px;color:var(--doux);display:inline-flex;align-items:center;gap:.4rem;margin-right:.4rem"><input type="checkbox" id="redSignature" checked> Signature</label>
               <button class="btn" type="button" id="redDicter">Dicter</button>
               <button class="btn plein" type="button" id="redOutlook">Ouvrir le brouillon dans Outlook</button>
               <button class="btn" type="button" id="redWeb">Outlook en ligne</button>
             </div>
-            <p class="note">Le message s’ouvre en brouillon, avec votre signature habituelle : rien ne part sans votre clic sur « Envoyer ».</p>
+            <p class="note">Le message s’ouvre en brouillon : rien ne part sans votre clic sur « Envoyer ». Outlook n’ajoute pas sa signature à un message prérempli : l’ASSISTANT ajoute donc la vôtre, en texte simple (sans logo).</p>
           </section>
         </section>
 
@@ -1040,7 +1041,8 @@ $('lancerVocal').addEventListener('click', function () { ouvrirRevue(true); });
        "evenements": [ { "debut": "…ISO…", "fin": "…ISO…", "objet": "…", "lieu": "…", "lien": "https://outlook…" } ] }
    Répertoire : fichier « repertoire-….json » du même dossier
      { "version": 1, "periode": "…", "contacts": [ { "adresse": "…", "nom": "…", "prenom": "…", "civilite": "Madame" | "Monsieur",
-       "qualite": "confrere" | "client" | "prenom_vous" | "prenom_tu" | "collegue", "envois": 12, "attente_depuis": "AAAA-MM-JJ" } ] }
+       "qualite": "confrere" | "client" | "prenom_vous" | "prenom_tu" | "collegue", "envois": 12, "attente_depuis": "AAAA-MM-JJ" } ],
+       "signature": "texte de la signature de JFD (ajoutée au brouillon, Outlook ne la mettant pas sur un message prérempli)" }
    Les changements de JFD (ajout, retrait, formule corrigée) sont gardés dans Neon (assistant_contact).
    Les deux fichiers seront écrits par le pont des mails ; tant qu'il ne tourne pas, Claude les dépose pendant les sessions.
    Les formules d'appel et de politesse reprennent celles de JFD dans ses envois. Le message s'ouvre en BROUILLON dans
@@ -1159,7 +1161,8 @@ function ouvrirRedaction(adresse) {
 function texteComplet() {
   var c = lesContacts().filter(function (x) { return x.adresse === contactOuvert; })[0] || {};
   var q = $('redQualite').value;
-  return [formuleAppel(c, q), $('redCorps').value.trim(), formulePolitesse(c, q)].filter(Boolean).join('\n\n');
+  var sig = $('redSignature').checked && repertoire && repertoire.signature ? String(repertoire.signature) : '';
+  return [formuleAppel(c, q), $('redCorps').value.trim(), formulePolitesse(c, q)].filter(Boolean).join('\n\n') + (sig ? '\n\n\n' + sig : '');
 }
 function adressesDe(v) { return String(v || '').split(/[\s,;]+/).filter(function (x) { return /@/.test(x); }).join(','); }
 function ouvrirBrouillon(enLigne) {

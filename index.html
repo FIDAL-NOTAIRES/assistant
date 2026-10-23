@@ -158,6 +158,18 @@ section.niveau>h2 .barre{width:28px;height:4px}
 #note .ligne{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
 
 .cache-vue{display:none!important}
+/* doublons possibles : les deux versions côte à côte, rien n'est retiré sans validation */
+.doublons{margin:1rem 0 .2rem;border:1px solid var(--orange);padding:.7rem .9rem;max-width:60rem}
+.doublons>summary{cursor:pointer;font:12px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--orange)}
+.paire{margin-top:.8rem;padding-top:.8rem;border-top:1px solid var(--filet)}
+.paire .deux{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem}
+.paire .version{background:var(--panneau);border:1px solid var(--filet);padding:.6rem .7rem}
+.paire .version .haut{font:11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--doux)}
+.paire .version h4{margin:.2rem 0 .3rem;font:600 14.5px/1.35 "Segoe UI",sans-serif}
+.paire .version p{margin:0 0 .5rem;font-size:13px;color:#C3D1DE}
+.paire .version .btn,.paire .pied .btn{padding:.28rem .5rem;font-size:11px}
+.paire .pied{margin-top:.5rem}
+@media (max-width:760px){ .paire .deux{grid-template-columns:1fr} }
 #app[data-vue="general"] .seul-outil{display:none!important}
 
 /* ASSISTANT GÉNÉRAL : programme du jour au centre, répertoire à droite */
@@ -282,6 +294,8 @@ section.niveau>h2 .barre{width:28px;height:4px}
       <p>La lecture du journal passe par le Drive. Donnez l’accord Google une fois, dans la petite fenêtre qui va s’ouvrir.</p>
       <button class="btn plein" type="button" id="autoriser">Autoriser la lecture du Drive</button>
     </div>
+
+    <details class="doublons cache" id="doublons" open><summary id="doublonsTitre"></summary><div id="paires"></div></details>
 
     <div class="filtres" id="filtres">
       <label>Appli <select id="fAppli"><option value="">Toutes</option></select></label>
@@ -434,7 +448,7 @@ var JOUR = 86400000;
 var RAISONS = { panne: 'service en panne', echeance: 'échéance proche', blocage: 'bloque d’autres points' };
 
 var points = {}, applis = {}, etats = {}, notes = [], rappels = [], incidents = null, lectureOk = false;
-var agenda = null, repertoire = null, contacts = [], dossiers = [];
+var agenda = null, repertoire = null, contacts = [], dossiers = [], distincts = {};
 var filtre = { appli: '', theme: '', urgence: '', lieu: '' };
 var dernierGeste = null, minuterieToast = null;
 
@@ -587,6 +601,7 @@ function lireEtats() {
     notes = j.notes || [];
     rappels = j.rappels || [];
     contacts = j.contacts || [];
+    distincts = {}; (j.distincts || []).forEach(function (x) { distincts[x.point_id + '|' + x.valeur] = 1; });
     dossiers = j.dossiers || [];
     afficherRappels(); programmerRappels();
   });
@@ -709,8 +724,67 @@ function afficher() {
   var l = $('liste');
   if (!l.dataset.allume && vus.length) { l.dataset.allume = '1'; l.classList.add('allume'); setTimeout(function () { l.classList.remove('allume'); }, 900); }
   l.innerHTML = html;
+  afficherDoublons(tous);
   afficherGeneral();
 }
+
+/* ---------- doublons (23/10/2026) : même appli, titres très proches ; montrés côte à côte, fusion sur validation seulement ---------- */
+var MOTS_VIDES = { les: 1, des: 1, une: 1, pour: 1, sur: 1, dans: 1, par: 1, avec: 1, aux: 1, est: 1, qui: 1, que: 1, son: 1, ses: 1, leur: 1, plus: 1, pas: 1 };
+function motsDe(p) {
+  return String((p.titre || '') + ' ' + (p.theme || '')).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .split(/[^a-z0-9]+/).filter(function (m) { return m.length >= 3 && !MOTS_VIDES[m]; });
+}
+function proches(a, b) {
+  var A = {}, B = {}; motsDe(a).forEach(function (m) { A[m] = 1; }); motsDe(b).forEach(function (m) { B[m] = 1; });
+  var ka = Object.keys(A), kb = Object.keys(B); if (!ka.length || !kb.length) return false;
+  var communs = ka.filter(function (m) { return B[m]; }).length;
+  var union = ka.length + kb.length - communs;
+  return communs >= 3 && communs / union >= 0.5;
+}
+function lesDoublons(tous) {
+  var paires = [];
+  for (var i = 0; i < tous.length; i++) for (var k = i + 1; k < tous.length; k++) {
+    var a = tous[i], b = tous[k];
+    if (a.appli !== b.appli) continue;
+    var cle = [a.p.id, b.p.id].sort().join('|');
+    if (distincts[cle]) continue;
+    if (proches(a.p, b.p)) paires.push(a.age >= b.age ? [a, b] : [b, a]);   /* le plus ancien à gauche */
+  }
+  return paires;
+}
+function afficherDoublons(tous) {
+  var paires = lesDoublons(tous);
+  $('doublons').classList.toggle('cache', !paires.length);
+  $('doublonsTitre').textContent = pluriel(paires.length, 'doublon possible', 'doublons possibles') + ' : rien n’est retiré sans votre choix';
+  function version(v, autre) {
+    var p = v.p;
+    return '<div class="version"><div class="haut">' + esc(p.id) + (p.inscrit_le ? ', inscrit le ' + esc(jourCourt(p.inscrit_le)) : '') + '</div><h4>' + esc(p.titre || '') + '</h4>'
+      + (p.detail ? '<p>' + esc(p.detail) + '</p>' : '') + '<button class="btn" type="button" data-garder="' + esc(p.id) + '" data-retirer="' + esc(autre.p.id) + '">Garder celle-ci</button></div>';
+  }
+  $('paires').innerHTML = paires.map(function (pr) {
+    return '<div class="paire"><div class="haut mono" style="font-size:11px;color:var(--doux)">' + esc(pr[0].appli) + '</div><div class="deux">' + version(pr[0], pr[1]) + version(pr[1], pr[0]) + '</div>'
+      + '<div class="pied"><button class="btn" type="button" data-distincts="' + esc(pr[0].p.id) + '|' + esc(pr[1].p.id) + '">Ce ne sont pas des doublons</button></div></div>';
+  }).join('');
+}
+$('paires').addEventListener('click', function (ev) {
+  var g = ev.target.closest('[data-garder]');
+  if (g) {
+    var garde = g.getAttribute('data-garder'), retire = g.getAttribute('data-retirer');
+    var avant = etats[retire] ? Object.assign({}, etats[retire]) : { point_id: retire, statut: 'ouvert', retrograde: false };
+    api('POST', { action: 'fusion', id: garde, autre: retire }).then(function (j) {
+      etats[retire] = j.etat; dernierGeste = { id: retire, avant: avant, quoi: 'tranche' };
+      afficher(); montrerToast('Doublon fusionné : ' + retire + ' est retiré de la liste, ' + garde + ' reste.');
+    }).catch(erreurGeste);
+    return;
+  }
+  var d = ev.target.closest('[data-distincts]');
+  if (d) {
+    var ids = d.getAttribute('data-distincts').split('|');
+    api('POST', { action: 'pas_doublon', id: ids[0], autre: ids[1] }).then(function () {
+      distincts[ids.slice().sort().join('|')] = 1; afficher(); montrerToast('Noté : ces deux points ne seront plus rapprochés.', true);
+    }).catch(erreurGeste);
+  }
+});
 function carte(v) {
   var p = v.p, a = applis[v.appli] || {};
   var lien = p.lien || a.adresse || '';
@@ -1307,7 +1381,7 @@ document.addEventListener('visibilitychange', function () { if (!document.hidden
 montrerVue(location.hash.slice(1));
 if (sessionStorage.getItem(CLE)) charger(); else verrouiller('');
 
-window._assistant = { formuleAppel: formuleAppel, formulePolitesse: formulePolitesse, qualiteParDefaut: qualiteParDefaut, dossierDe: dossierDe, texteComplet: texteComplet, poserGeneral: function (ag, rep, ct, ds) { agenda = ag; repertoire = rep; contacts = ct || []; dossiers = ds || []; afficherGeneral(); }, evaluer: evaluer, fusionner: fusionner, lireCommande: lireCommande, lireNote: lireNote, lireHeure: lireHeure, ordonner: ordonner, etats: function () { return etats; }, poser: function (p, a, e) { points = p; applis = a || {}; etats = e || {}; lectureOk = true; afficher(); } };
+window._assistant = { lesDoublons: lesDoublons, proches: proches, formuleAppel: formuleAppel, formulePolitesse: formulePolitesse, qualiteParDefaut: qualiteParDefaut, dossierDe: dossierDe, texteComplet: texteComplet, poserGeneral: function (ag, rep, ct, ds) { agenda = ag; repertoire = rep; contacts = ct || []; dossiers = ds || []; afficherGeneral(); }, evaluer: evaluer, fusionner: fusionner, lireCommande: lireCommande, lireNote: lireNote, lireHeure: lireHeure, ordonner: ordonner, etats: function () { return etats; }, poser: function (p, a, e) { points = p; applis = a || {}; etats = e || {}; lectureOk = true; afficher(); } };
 })();
 </script>
 </body>

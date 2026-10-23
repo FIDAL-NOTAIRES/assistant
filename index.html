@@ -131,6 +131,32 @@ section.niveau>h2 .barre{width:28px;height:4px}
 
 #toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--panneau2);border:1px solid var(--cyan);padding:.55rem .8rem;display:flex;gap:.9rem;align-items:center;z-index:28;max-width:92vw}
 
+.rappel{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem 1rem;border:1px solid var(--cyan);background:rgba(109,213,220,.07);padding:.6rem .9rem;margin:.9rem 0 0;max-width:60rem}
+.rappel p{margin:0;flex:1 1 18rem}
+
+/* revue du matin : un point à la fois, plein écran */
+#revue{position:fixed;inset:0;background:rgba(5,14,24,.97);z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:calc(1.2rem + env(safe-area-inset-top,0px)) 1.2rem calc(1.2rem + env(safe-area-inset-bottom,0px))}
+#revue .cadre{width:min(44rem,100%);position:relative;border:1px solid var(--filet2);background:var(--panneau);padding:1.4rem 1.5rem 1.2rem}
+#revue .cadre::before,#revue .cadre::after{content:"";position:absolute;width:14px;height:14px;border-color:var(--cyan);border-style:solid}
+#revue .cadre::before{top:-1px;left:-1px;border-width:2px 0 0 2px}
+#revue .cadre::after{bottom:-1px;right:-1px;border-width:0 2px 2px 0}
+#revue .progres{display:flex;justify-content:space-between;gap:1rem;font:12px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--doux);margin-bottom:.9rem}
+#revue .niv{font-weight:600}
+#revue .niv.rouge{color:var(--rouge)} #revue .niv.orange{color:var(--orange)} #revue .niv.calme{color:var(--cyan)}
+#revue h2{font:normal clamp(1.3rem,3vw,1.75rem)/1.25 Georgia,serif;margin:.2rem 0 .6rem}
+#revue .detail{color:#C3D1DE;margin:0 0 .8rem;max-width:62ch}
+#revue .actions{margin-top:1rem}
+#revue .actions .btn{padding:.5rem .8rem;font-size:12px}
+#revue .entendu{min-height:1.5em;margin-top:.9rem;font-size:13px;color:var(--doux)}
+#revue .entendu.ecoute::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--rouge);margin-right:.5rem;box-shadow:0 0 8px var(--rouge)}
+#revue .pied{margin-top:1rem;display:flex;gap:.5rem}
+
+#note{position:fixed;inset:0;background:rgba(5,14,24,.85);z-index:35;display:flex;align-items:center;justify-content:center;padding:1rem}
+#note .boite{max-width:34rem}
+#note textarea{width:100%;min-height:7rem;background:var(--nuit);border:1px solid var(--filet2);padding:.6rem .7rem;margin:.4rem 0 .8rem;resize:vertical;font:inherit;color:inherit}
+#note select{background:var(--nuit);border:1px solid var(--filet2);padding:.35rem .5rem;border-radius:0}
+#note .ligne{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+
 @media (max-width:760px){
   #app{grid-template-columns:1fr}
   nav.bandeau{position:fixed;top:auto;bottom:0;left:0;right:0;height:auto;flex-direction:row;padding:.3rem .4rem calc(.3rem + env(safe-area-inset-bottom,0px));border-right:0;border-top:1px solid var(--filet);z-index:22;gap:.2rem}
@@ -144,8 +170,8 @@ section.niveau>h2 .barre{width:28px;height:4px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 @media (prefers-reduced-motion:no-preference){
-  section.niveau{animation:allume .35s ease-out both}
-  section.niveau:nth-of-type(2){animation-delay:.08s} section.niveau:nth-of-type(3){animation-delay:.16s}
+  #liste.allume section.niveau{animation:allume .35s ease-out both}
+  #liste.allume section.niveau:nth-of-type(2){animation-delay:.08s} #liste.allume section.niveau:nth-of-type(3){animation-delay:.16s}
   @keyframes allume{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 }
 </style>
@@ -198,6 +224,9 @@ section.niveau>h2 .barre{width:28px;height:4px}
         <div class="date" id="date"></div>
       </div>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <button class="btn plein" type="button" id="lancerRevue">Revue</button>
+        <button class="btn" type="button" id="lancerVocal">Revue à voix haute</button>
+        <button class="btn" type="button" id="dicterNote">Dicter une note</button>
         <button class="btn" type="button" id="actualiser">Actualiser</button>
         <button class="btn" type="button" id="verrouiller">Verrouiller</button>
       </div>
@@ -205,6 +234,7 @@ section.niveau>h2 .barre{width:28px;height:4px}
 
     <p class="annonce" id="annonce" aria-live="polite">Lecture du journal…</p>
     <p class="etatlecture" id="etatLecture"></p>
+    <div id="rappels"></div>
     <div class="accord cache" id="accord">
       <p>La lecture du journal passe par le Drive. Donnez l’accord Google une fois, dans la petite fenêtre qui va s’ouvrir.</p>
       <button class="btn plein" type="button" id="autoriser">Autoriser la lecture du Drive</button>
@@ -243,10 +273,41 @@ section.niveau>h2 .barre{width:28px;height:4px}
   <p style="margin-top:1.2rem"><a class="btn plein" id="ficheOuvrir" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block">Ouvrir l’appli</a></p>
 </aside>
 
+<div id="revue" class="cache" role="dialog" aria-modal="true" aria-labelledby="revueTitre">
+  <div class="cadre">
+    <div class="progres"><span id="revueRang"></span><span class="niv" id="revueNiveau"></span></div>
+    <div class="date" id="revueAppli"></div>
+    <h2 id="revueTitre"></h2>
+    <p class="detail" id="revueDetail"></p>
+    <div class="meta" id="revueMeta"></div>
+    <div class="actions" id="revueActions">
+      <button class="btn plein" type="button" data-r="tranche">Tranché</button>
+      <button class="btn" type="button" data-r="reporte">Reporter 3 jours</button>
+      <button class="btn" type="button" data-r="pc">À voir sur PC</button>
+      <button class="btn" type="button" data-r="retrograde" id="revueRetro">Rétrograder</button>
+      <button class="btn" type="button" data-r="suivant">Suivant</button>
+    </div>
+    <div class="entendu" id="revueEntendu" aria-live="polite"></div>
+    <div class="pied"><button class="btn" type="button" id="revueFin">Arrêter la revue</button></div>
+  </div>
+</div>
+
+<div id="note" class="cache" role="dialog" aria-modal="true" aria-labelledby="noteTitre">
+  <form class="boite" id="formNote">
+    <h1 id="noteTitre">Note pour une appli</h1>
+    <p>Elle devient un point du tableau de bord, à voir sur PC.</p>
+    <div class="ligne"><label class="mono" for="noteAppli" style="font-size:11px;color:var(--doux)">Appli</label><select id="noteAppli"></select>
+      <button class="btn" type="button" id="noteMicro">Dicter</button></div>
+    <textarea id="noteTexte" aria-label="Texte de la note" required></textarea>
+    <div class="erreur" id="noteErreur" role="alert"></div>
+    <div class="ligne"><button class="btn plein" type="submit">Enregistrer la note</button><button class="btn" type="button" id="noteAnnuler">Annuler</button></div>
+  </form>
+</div>
+
 <div id="toast" class="cache" role="status"><span id="toastTexte"></span><button class="btn" type="button" id="toastAnnuler">Annuler</button></div>
 
 <script>
-/* ASSISTANT — lot 1 : ASSISTANT OUTIL (23/10/2026).
+/* ASSISTANT — lot 2 : ASSISTANT OUTIL + revue du matin, revue à voix haute, notes dictées, rappels (23/10/2026).
    Les points viennent du dossier Drive « ASSISTANT – journal », où Claude dépose pendant les sessions des fichiers
    JSON « journal-AAAA-MM-JJ-NN.json ». Le Drive ne s'écrit pas par-dessus : chaque session ajoute un fichier, et un
    point repris dans un fichier plus récent (même identifiant) met à jour l'ancien. Format v1 :
@@ -269,7 +330,7 @@ var INCIDENTS = 'https://connexion-omega.vercel.app/api/incidents';
 var JOUR = 86400000;
 var RAISONS = { panne: 'service en panne', echeance: 'échéance proche', blocage: 'bloque d’autres points' };
 
-var points = {}, applis = {}, etats = {}, incidents = null, lectureOk = false;
+var points = {}, applis = {}, etats = {}, notes = [], rappels = [], incidents = null, lectureOk = false;
 var filtre = { appli: '', theme: '', urgence: '', lieu: '' };
 var dernierGeste = null, minuterieToast = null;
 
@@ -409,6 +470,9 @@ function lireEtats() {
   return api('GET').then(function (j) {
     etats = {};
     (j.etats || []).forEach(function (e) { etats[e.point_id] = e; });
+    notes = j.notes || [];
+    rappels = j.rappels || [];
+    afficherRappels(); programmerRappels();
   });
 }
 function lireIncidents() {
@@ -449,9 +513,24 @@ function evaluer(p, maintenant) {
     statut: statut, appli: String(p.appli || 'Divers').toUpperCase(), theme: p.theme || ''
   };
 }
+/* une note dictée devient un point, identifiant N-<id>, à voir sur PC */
+function pointDeNote(n) {
+  var t = String(n.texte || '');
+  var court = t.length > 110 ? t.slice(0, 107).replace(/\s+\S*$/, '') + '…' : t;
+  return { id: 'N-' + n.id, appli: n.appli, theme: 'Note dictée', titre: court, detail: t.length > 110 ? t : '', inscrit_le: String(n.cree_le).slice(0, 10), lieu: 'pc' };
+}
 function tousLesPoints() {
   var maintenant = new Date();
-  return Object.keys(points).map(function (id) { return evaluer(points[id], maintenant); }).filter(Boolean);
+  var liste = Object.keys(points).map(function (id) { return points[id]; });
+  notes.forEach(function (n) { liste.push(pointDeNote(n)); });
+  return ordonner(liste.map(function (p) { return evaluer(p, maintenant); }).filter(Boolean));
+}
+/* ordre (23/10/2026) : rouges, puis orange, puis le reste ; dans chaque niveau, par appli ; les plus anciens d'abord */
+var RANG = { rouge: 0, orange: 1, calme: 2 };
+function ordonner(l) {
+  return l.sort(function (a, b) {
+    return RANG[a.niveau] - RANG[b.niveau] || a.appli.localeCompare(b.appli, 'fr') || b.age - a.age || String(a.p.id).localeCompare(String(b.p.id));
+  });
 }
 function retenu(v) {
   return (!filtre.appli || v.appli === filtre.appli) && (!filtre.theme || v.theme === filtre.theme)
@@ -510,7 +589,10 @@ function afficher() {
     html += '</div></section>';
   });
   if (!html) html = '<div class="vide">' + (tous.length ? 'Aucun point ne correspond aux filtres choisis.' : (lectureOk ? 'Rien en attente. Les nouveaux points arriveront ici dès que Claude les aura inscrits au journal.' : 'Le journal n’a pas encore pu être lu.')) + '</div>';
-  $('liste').innerHTML = html;
+  /* mise sous tension en cascade au premier affichage seulement, pas à chaque geste */
+  var l = $('liste');
+  if (!l.dataset.allume && vus.length) { l.dataset.allume = '1'; l.classList.add('allume'); setTimeout(function () { l.classList.remove('allume'); }, 900); }
+  l.innerHTML = html;
 }
 function carte(v) {
   var p = v.p, a = applis[v.appli] || {};
@@ -576,6 +658,266 @@ function ouvrirFiche(ap) {
 }
 function fermerFiche() { $('fiche').classList.remove('ouverte'); $('fiche').setAttribute('aria-hidden', 'true'); }
 
+/* ---------- rappels (mode vocal : « rappel à 15 heures » pour les points à voir sur PC) ---------- */
+var minuteriesRappel = [];
+function heureCourte(iso) { var d = new Date(iso), m = d.getMinutes(); return d.getHours() + ' h' + (m ? ' ' + String(m).padStart(2, '0') : ''); }
+function afficherRappels() {
+  var dus = rappels.filter(function (x) { return new Date(x.prevu_le) <= new Date(); });
+  $('rappels').innerHTML = dus.map(function (x) {
+    return '<div class="rappel"><p><strong>Rappel de ' + esc(heureCourte(x.prevu_le)) + '</strong> : ' + pluriel((x.ids || []).length, 'point est à traiter sur PC.', 'points sont à traiter sur PC.') + '</p>'
+      + '<button class="btn" type="button" data-sur-pc="1">Voir les points sur PC</button><button class="btn" type="button" data-rappel-vu="' + esc(x.id) + '">Vu</button></div>';
+  }).join('');
+}
+function programmerRappels() {
+  minuteriesRappel.forEach(clearTimeout); minuteriesRappel = [];
+  rappels.forEach(function (x) {
+    var d = new Date(x.prevu_le) - new Date();
+    if (d > 0 && d < 86400000) minuteriesRappel.push(setTimeout(function () {
+      afficherRappels();
+      try { if (window.Notification && Notification.permission === 'granted') new Notification('Assistant', { body: 'Rappel : ' + pluriel((x.ids || []).length, 'point à traiter sur PC.', 'points à traiter sur PC.') }); } catch (e) {}
+    }, d));
+  });
+}
+$('rappels').addEventListener('click', function (ev) {
+  var v = ev.target.closest('[data-rappel-vu]');
+  if (v) { var id = v.getAttribute('data-rappel-vu'); api('POST', { action: 'rappel_vu', id: id }).then(function () { rappels = rappels.filter(function (x) { return String(x.id) !== id; }); afficherRappels(); }).catch(erreurGeste); return; }
+  if (ev.target.closest('[data-sur-pc]')) { var b = document.querySelector('#fLieu [data-v="pc"]'); if (b) b.click(); }
+});
+
+/* ---------- revue du matin : un point à la fois, par priorité, tous assistants confondus ---------- */
+var revue = { actif: false, vocal: false, liste: [], i: 0, reco: null };
+function demainNeufHeures() { var d = new Date(); d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0); return d; }
+function montrerPoint(v, rang, total) {
+  var p = v.p;
+  $('revueRang').textContent = 'Point ' + rang + ' sur ' + total;
+  var nv = $('revueNiveau'); nv.textContent = { rouge: 'Rouge', orange: 'Orange', calme: 'Sans urgence' }[v.niveau]; nv.className = 'niv ' + v.niveau;
+  $('revueAppli').textContent = v.appli + (v.theme ? ' / ' + v.theme : '');
+  $('revueTitre').textContent = p.titre || '(sans titre)';
+  $('revueDetail').textContent = p.detail || '';
+  $('revueMeta').innerHTML = v.raisons.map(function (x) { return '<span class="puce ' + (v.niveau === 'rouge' ? 'r' : 'o') + '">' + esc(x) + '</span>'; }).join(' ')
+    + ' <span class="puce' + (v.lieu === 'pc' ? ' pc' : '') + '">' + (v.lieu === 'pc' ? 'sur PC' : 'à l’oral') + '</span>';
+  $('revueRetro').classList.toggle('cache', !v.rougeParCritere);
+  $('revueRetro').textContent = v.retrograde ? 'Rétablir le rouge' : 'Rétrograder';
+  $('revueActions').classList.remove('cache');
+}
+function ouvrirRevue(vocal) {
+  var tous = tousLesPoints();
+  if (!tous.length) { montrerToast('Aucun point en attente : rien à passer en revue.', true); return; }
+  revue = { actif: true, vocal: !!vocal, liste: tous, i: 0, reco: null };
+  $('revue').classList.remove('cache'); $('revueEntendu').textContent = '';
+  if (vocal) return revueVocale();
+  montrerPoint(tous[0], 1, tous.length);
+  $('revueActions').querySelector('button').focus();
+}
+function fermerRevue(message) {
+  revue.actif = false;
+  try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
+  try { if (revue.reco) revue.reco.abort(); } catch (e) {}
+  $('revue').classList.add('cache');
+  afficher();
+  if (message) montrerToast(message, true);
+}
+function avancer() {
+  revue.i++;
+  if (revue.i >= revue.liste.length) return fermerRevue('Revue terminée.');
+  montrerPoint(revue.liste[revue.i], revue.i + 1, revue.liste.length);
+}
+$('revueActions').addEventListener('click', function (ev) {
+  var b = ev.target.closest('[data-r]'); if (!b || revue.vocal) return;
+  var q = b.getAttribute('data-r'), v = revue.liste[revue.i];
+  if (q === 'suivant') return avancer();
+  b.disabled = true;
+  geste(v.p.id, q).then(function () {
+    b.disabled = false;
+    if (q === 'retrograde') { var e = evaluer(v.p, new Date()); if (e) { revue.liste[revue.i] = e; montrerPoint(e, revue.i + 1, revue.liste.length); } return; }
+    avancer();
+  });
+});
+$('revueFin').addEventListener('click', function () { fermerRevue(''); });
+
+/* ---------- mode vocal (commandes simples, voix du navigateur, sans modèle d'IA) ---------- */
+function normal(t) { return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+function voixFr() {
+  try { var v = speechSynthesis.getVoices().filter(function (x) { return /^fr(-|_|$)/i.test(x.lang); }); return v.filter(function (x) { return /fr-FR/i.test(x.lang); })[0] || v[0] || null; } catch (e) { return null; }
+}
+function dire(t) {
+  return new Promise(function (res) {
+    if (!revue.actif && revue.vocal) return res();
+    if (!('speechSynthesis' in window)) return res();
+    try { speechSynthesis.cancel(); } catch (e) {}
+    var u = new SpeechSynthesisUtterance(t); u.lang = 'fr-FR'; var v = voixFr(); if (v) u.voice = v; u.rate = 1.03;
+    var fini = false; function fin() { if (!fini) { fini = true; res(); } }
+    u.onend = fin; u.onerror = fin; setTimeout(fin, 4000 + t.length * 90);
+    speechSynthesis.speak(u);
+  });
+}
+function ecouter() {
+  return new Promise(function (res) {
+    var R = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!R || !revue.actif) return res(null);
+    var r = new R(); r.lang = 'fr-FR'; r.interimResults = false; r.maxAlternatives = 3;
+    var fini = false; function fin(x) { if (!fini) { fini = true; $('revueEntendu').classList.remove('ecoute'); res(x); } }
+    r.onresult = function (e) { var a = []; for (var k = 0; k < e.results[0].length; k++) a.push(e.results[0][k].transcript); $('revueEntendu').textContent = 'Entendu : « ' + a[0] + ' »'; fin(a.join(' | ')); };
+    r.onerror = function () { fin(null); }; r.onend = function () { fin(null); };
+    revue.reco = r; $('revueEntendu').textContent = 'À vous…'; $('revueEntendu').classList.add('ecoute');
+    try { r.start(); } catch (e) { fin(null); }
+  });
+}
+function lireCommande(t) {
+  var n = normal(t);
+  if (!n) return null;
+  if (/\bnote pour\b/.test(n)) return 'note';
+  if (/\b(arrete|arreter|stop|fin de la revue)\b/.test(n)) return 'stop';
+  if (/\b(repete|repeter|redis|encore)\b/.test(n)) return 'repete';
+  if (/\b(retrograde|retrograder|pas urgent|faux rouge)\b/.test(n)) return 'retrograde';
+  if (/\b(tranche|fait|regle|termine|c'est bon)\b/.test(n)) return 'tranche';
+  if (/\b(report|reporte|reporter|plus tard)\b/.test(n)) return 'reporte';
+  if (/\b(pc|ordinateur|bureau)\b/.test(n)) return 'pc';
+  if (/\b(suivant|passe|passer|ensuite)\b/.test(n)) return 'suivant';
+  return null;
+}
+/* « note pour MONETA … » : l'appli est reconnue parmi celles du journal, sinon le premier mot */
+function applisConnues() {
+  var a = {}; Object.keys(applis).forEach(function (k) { a[k] = 1; });
+  Object.keys(points).forEach(function (id) { if (points[id].appli) a[String(points[id].appli).toUpperCase()] = 1; });
+  return Object.keys(a).sort(function (x, y) { return y.length - x.length; });
+}
+function lireNote(t) {
+  var brut = String(t || '').split(' | ')[0];
+  var m = brut.match(/note pour\s+(.*)$/i); if (!m) return null;
+  var reste = m[1].trim(), nr = normal(reste), appli = null;
+  applisConnues().some(function (a) { var na = normal(a); if (nr.indexOf(na + ' ') === 0 || nr === na) { appli = a; reste = reste.slice(a.length).trim(); return true; } return false; });
+  if (!appli) { var w = reste.split(/\s+/); appli = (w.shift() || 'DIVERS').toUpperCase(); reste = w.join(' '); }
+  reste = reste.replace(/^[:,\s-]+/, '');
+  return reste ? { appli: appli, texte: reste.charAt(0).toUpperCase() + reste.slice(1) } : null;
+}
+function enregistrerNote(n) {
+  return api('POST', { action: 'note', appli: n.appli, texte: n.texte }).then(function (j) { notes.push(j.note); afficher(); return j.note; });
+}
+function lireHeure(t) {
+  var n = normal(t).split(' | ')[0];
+  var h = null, mi = 0, m = n.match(/(\d{1,2})\s*(?:h|heures?|:)\s*(\d{1,2})?/);
+  if (m) { h = +m[1]; mi = m[2] ? +m[2] : 0; } else if (/\bmidi\b/.test(n)) h = 12;
+  if (h === null || h > 23 || mi > 59) return null;
+  var d = new Date(); d.setHours(h, mi, 0, 0); return d;
+}
+function phrase(v) {
+  var p = v.p, t = { rouge: 'Point rouge', orange: 'Point orange', calme: 'Point' }[v.niveau] + ', ' + v.appli.toLowerCase() + '. ' + (p.titre || '') + '.';
+  if (v.raisons.length) t += ' ' + v.raisons.join(', ') + '.';
+  if (p.detail) t += ' ' + p.detail;
+  return t;
+}
+function ecouterCommande(v) {
+  return ecouter().then(function (t) {
+    var c = lireCommande(t);
+    if (c) return { c: c, t: t };
+    if (!revue.actif) return { c: 'stop' };
+    return dire(t ? 'Je n’ai pas compris. Dites tranché, reporté, sur PC, suivant ou répète.' : 'Je n’ai rien entendu. Dites tranché, reporté, sur PC, suivant ou répète.')
+      .then(ecouter).then(function (t2) { return { c: lireCommande(t2) || 'suivant', t: t2 }; });
+  });
+}
+function revueVocale() {
+  var tous = revue.liste;
+  var aOral = tous.filter(function (v) { return v.lieu === 'oral'; });
+  var auPc = tous.filter(function (v) { return v.lieu === 'pc'; });
+  var rouges = tous.filter(function (v) { return v.niveau === 'rouge'; }).length;
+  $('revueActions').classList.add('cache');
+  if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) { $('revueEntendu').textContent = 'Ce navigateur n’offre pas la reconnaissance de la voix : utilisez la revue à l’écran.'; return; }
+  var intro = 'Vous avez ' + pluriel(tous.length, 'point en attente', 'points en attente') + (rouges ? ', dont ' + pluriel(rouges, 'rouge', 'rouges') : '') + '. '
+    + (aOral.length ? 'Je commence par ' + (aOral.length > 1 ? 'les ' + aOral.length + ' points' : 'le point') + ' à trancher à l’oral.' : 'Aucun ne se tranche à l’oral.');
+  var i = 0;
+  function suivant() {
+    if (!revue.actif) return;
+    if (i >= aOral.length) return pcGlobal();
+    var v = aOral[i];
+    montrerPoint(v, i + 1, aOral.length); $('revueActions').classList.add('cache');
+    return dire(phrase(v)).then(function () { return ecouterCommande(v); }).then(function (r) {
+      if (!revue.actif) return;
+      if (r.c === 'stop') return fermerRevue('Revue arrêtée.');
+      if (r.c === 'repete') return suivant();
+      if (r.c === 'note') {
+        var n = lireNote(r.t);
+        if (!n) return dire('Dites : note pour, le nom de l’appli, puis la note.').then(suivant);
+        return enregistrerNote(n).then(function () { return dire('Note enregistrée pour ' + n.appli.toLowerCase() + '.'); }, function () { return dire('La note n’a pas pu être enregistrée.'); }).then(suivant);
+      }
+      if (r.c === 'suivant') { i++; return suivant(); }
+      return geste(v.p.id, r.c).then(function () {
+        if (r.c === 'retrograde') return dire('Rétrogradé.').then(function () { i++; return suivant(); });
+        return dire({ tranche: 'Tranché.', reporte: 'Reporté de trois jours.', pc: 'Noté pour le PC.' }[r.c] || 'C’est noté.').then(function () { i++; return suivant(); });
+      });
+    });
+  }
+  /* points « sur PC » : traitement GLOBAL (23/10/2026) — le nombre, une liste brève, puis demain 9 h ou rappel à l'heure choisie */
+  function pcGlobal() {
+    var restePc = auPc.concat(aOral.filter(function (v) { var e = etats[v.p.id]; return e && e.statut === 'pc'; }));
+    if (!restePc.length) return dire('Revue terminée.').then(function () { fermerRevue('Revue terminée.'); });
+    $('revueRang').textContent = pluriel(restePc.length, 'point', 'points') + ' à traiter sur PC';
+    $('revueNiveau').textContent = ''; $('revueAppli').textContent = 'Sur PC';
+    $('revueTitre').textContent = 'Reporter à demain 9 h, ou rappel aujourd’hui ?';
+    $('revueDetail').textContent = restePc.map(function (v) { return v.appli + ' : ' + (v.p.titre || ''); }).join(' ; ');
+    $('revueMeta').innerHTML = '';
+    var noms = restePc.slice(0, 7).map(function (v) { return v.appli.toLowerCase() + ', ' + (v.p.titre || ''); });
+    var t = 'Il reste ' + pluriel(restePc.length, 'point à traiter sur PC', 'points à traiter sur PC') + ' : ' + noms.join(' ; ') + (restePc.length > 7 ? ' ; et ' + (restePc.length - 7) + ' autres' : '') + '. '
+      + 'Voulez-vous les reporter à demain, ou un rappel aujourd’hui ? Dites demain, ou rappel à telle heure.';
+    function demander(texte, essai) {
+      return dire(texte).then(ecouter).then(function (rep) {
+        if (!revue.actif) return;
+        var n = normal(rep);
+        if (/\bdemain\b/.test(n)) {
+          var j = demainNeufHeures().toISOString();
+          return restePc.reduce(function (p, v) { return p.then(function () { return api('POST', { action: 'statut', id: v.p.id, statut: 'reporte', jusqu: j }).then(function (x) { etats[v.p.id] = x.etat; }); }); }, Promise.resolve())
+            .then(function () { return dire('C’est fait : ' + pluriel(restePc.length, 'point reviendra', 'points reviendront') + ' demain à 9 heures. Revue terminée.'); },
+                  function () { return dire('Le report n’a pas pu être enregistré.'); })
+            .then(function () { fermerRevue('Points sur PC reportés à demain 9 h.'); });
+        }
+        var h = lireHeure(rep);
+        if (h && h > new Date()) {
+          try { if (window.Notification && Notification.permission === 'default') Notification.requestPermission(); } catch (e) {}
+          return api('POST', { action: 'rappel', prevu_le: h.toISOString(), ids: restePc.map(function (v) { return v.p.id; }) })
+            .then(function (x) { rappels.push(x.rappel); programmerRappels(); return dire('Rappel posé à ' + heureCourte(h.toISOString()) + '. Revue terminée.'); },
+                  function () { return dire('Le rappel n’a pas pu être enregistré.'); })
+            .then(function () { fermerRevue('Rappel posé à ' + heureCourte(h.toISOString()) + '.'); });
+        }
+        if (h) return essai ? fermerRevue('Heure déjà passée : rien n’a été posé.') : demander('Cette heure est déjà passée. Dites demain, ou une heure plus tardive.', true);
+        if (lireCommande(rep) === 'stop' || essai) return dire('Je laisse les points en l’état. Revue terminée.').then(function () { fermerRevue('Points sur PC laissés en l’état.'); });
+        return demander('Je n’ai pas compris. Dites demain, ou rappel à quinze heures, par exemple.', true);
+      });
+    }
+    return demander(t, false);
+  }
+  dire(intro).then(suivant);
+}
+
+/* ---------- note dictée ou tapée ---------- */
+function ouvrirNote() {
+  var l = applisConnues().sort(function (a, b) { return a.localeCompare(b, 'fr'); });
+  $('noteAppli').innerHTML = l.map(function (a) { return '<option>' + esc(a) + '</option>'; }).join('') + '<option value="DIVERS">Autre (DIVERS)</option>';
+  $('noteTexte').value = ''; $('noteErreur').textContent = '';
+  $('note').classList.remove('cache'); $('noteTexte').focus();
+}
+function fermerNote() { $('note').classList.add('cache'); }
+$('dicterNote').addEventListener('click', ouvrirNote);
+$('noteAnnuler').addEventListener('click', fermerNote);
+$('noteMicro').addEventListener('click', function () {
+  var R = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!R) { $('noteErreur').textContent = 'Ce navigateur n’offre pas la reconnaissance de la voix.'; return; }
+  var r = new R(); r.lang = 'fr-FR'; r.interimResults = false;
+  $('noteMicro').textContent = 'À vous…';
+  r.onresult = function (e) { var t = e.results[0][0].transcript; var cur = $('noteTexte').value;
+    $('noteTexte').value = (cur ? cur + ' ' : '') + t.charAt(0).toUpperCase() + t.slice(1); };
+  r.onend = function () { $('noteMicro').textContent = 'Dicter'; };
+  r.onerror = function () { $('noteMicro').textContent = 'Dicter'; };
+  try { r.start(); } catch (e) { $('noteMicro').textContent = 'Dicter'; }
+});
+$('formNote').addEventListener('submit', function (ev) {
+  ev.preventDefault();
+  var t = $('noteTexte').value.trim(); if (!t) return;
+  enregistrerNote({ appli: $('noteAppli').value, texte: t }).then(function () { fermerNote(); montrerToast('Note enregistrée.', true); },
+    function (e) { $('noteErreur').textContent = 'Note non enregistrée : ' + e.message; });
+});
+$('lancerRevue').addEventListener('click', function () { ouvrirRevue(false); });
+$('lancerVocal').addEventListener('click', function () { ouvrirRevue(true); });
+
 /* ---------- accès et chargement ---------- */
 function verrouiller(message) {
   sessionStorage.removeItem(CLE);
@@ -607,7 +949,7 @@ $('actualiser').addEventListener('click', function () { charger(); });
 $('autoriser').addEventListener('click', autoriserDrive);
 $('fermerFiche').addEventListener('click', fermerFiche);
 $('toastAnnuler').addEventListener('click', annuler);
-document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') fermerFiche(); });
+document.addEventListener('keydown', function (ev) { if (ev.key !== 'Escape') return; if (!$('revue').classList.contains('cache')) return fermerRevue(''); if (!$('note').classList.contains('cache')) return fermerNote(); fermerFiche(); });
 $('fAppli').addEventListener('change', function () { filtre.appli = this.value; afficher(); });
 $('fTheme').addEventListener('change', function () { filtre.theme = this.value; afficher(); });
 ['fUrgence', 'fLieu'].forEach(function (id) {
@@ -656,7 +998,7 @@ document.addEventListener('visibilitychange', function () { if (!document.hidden
 
 if (sessionStorage.getItem(CLE)) charger(); else verrouiller('');
 
-window._assistant = { evaluer: evaluer, fusionner: fusionner, etats: function () { return etats; }, poser: function (p, a, e) { points = p; applis = a || {}; etats = e || {}; lectureOk = true; afficher(); } };
+window._assistant = { evaluer: evaluer, fusionner: fusionner, lireCommande: lireCommande, lireNote: lireNote, lireHeure: lireHeure, ordonner: ordonner, etats: function () { return etats; }, poser: function (p, a, e) { points = p; applis = a || {}; etats = e || {}; lectureOk = true; afficher(); } };
 })();
 </script>
 </body>

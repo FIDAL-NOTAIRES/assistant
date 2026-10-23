@@ -7,6 +7,7 @@
 //                     { action: 'fusion', id: <point gardé>, autre: <point retiré> }   doublon : l'autre passe en tranché
 //                     { action: 'pas_doublon', id, autre }                         les deux points ne seront plus rapprochés
 //                     { action: 'contact', adresse, nom?, qualite?, civilite?, prenom?, ajoute?, masque? }  répertoire de l'ASSISTANT GÉNÉRAL
+//                     { action: 'attente', adresse, depuis, decision: 'due' | 'reglee' }   réponse due tranchée par JFD (vaut pour ce message)
 // Le GET rend aussi les dossiers ouverts de SUIVI (même base, lecture seule) pour rapprocher les rendez-vous du jour.
 //                     { action: 'retrograde', id, valeur: true|false }
 // Accès : en-tête x-assistant-code comparé à la variable ASSISTANT_CODE_ADMIN (JFD seul).
@@ -78,9 +79,12 @@ async function traiter(req, res) {
     /* bilan du matin : le dernier jour relevé par api/bilan.js */
     let bilan = [];
     try { bilan = await sql`SELECT jour, nom, type, etat, ms, code, detail, incidents_24h, releve_le FROM assistant_bilan WHERE jour = (SELECT max(jour) FROM assistant_bilan) ORDER BY type DESC, nom`; } catch (e) { bilan = []; }
+    /* décisions de JFD sur les réponses dues (23/10/2026) : la dernière l'emporte, pour le message daté « depuis » */
+    let attentes = [];
+    try { attentes = await sql`SELECT point_id, valeur, fait_le FROM assistant_action WHERE action = 'attente' AND fait_le >= now() - interval '120 days' ORDER BY fait_le`; } catch (e) { attentes = []; }
     let distincts = [];
     try { distincts = await sql`SELECT point_id, valeur FROM assistant_action WHERE action = 'pas_doublon'`; } catch (e) { distincts = []; }
-    return repondre(res, 200, { etats: etats, notes: notes, rappels: rappels, contacts: contacts, dossiers: dossiers, distincts: distincts, semaine: semaine, bilan: bilan });
+    return repondre(res, 200, { etats: etats, notes: notes, rappels: rappels, contacts: contacts, dossiers: dossiers, distincts: distincts, semaine: semaine, bilan: bilan, attentes: attentes });
   }
   if (req.method !== 'POST') return repondre(res, 405, { erreur: 'Méthode refusée.' });
 
@@ -139,6 +143,15 @@ async function traiter(req, res) {
         masque = EXCLUDED.masque, maj_le = now()
       RETURNING adresse, nom, qualite, civilite, prenom, ajoute, masque`;
     return repondre(res, 200, { ok: true, contact: r[0] });
+  }
+  if (b.action === 'attente') {
+    const adresse = texte(b.adresse, 200).toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(adresse)) return repondre(res, 400, { erreur: 'Adresse invalide.' });
+    const depuis = texte(b.depuis, 40);
+    if (!/^[0-9][0-9TZ:+.\- ]{7,39}$/.test(depuis) || isNaN(Date.parse(depuis))) return repondre(res, 400, { erreur: 'Date du message invalide.' });
+    if (b.decision !== 'due' && b.decision !== 'reglee') return repondre(res, 400, { erreur: 'Décision inconnue.' });
+    await sql`INSERT INTO assistant_action (point_id, action, valeur) VALUES (${adresse}, 'attente', ${b.decision + '|' + depuis})`;
+    return repondre(res, 200, { ok: true });
   }
   const id = String(b.id || '').trim();
   if (!/^[A-Za-z0-9._:-]{1,80}$/.test(id)) return repondre(res, 400, { erreur: 'Identifiant de point invalide.' });

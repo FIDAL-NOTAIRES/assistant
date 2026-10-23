@@ -75,9 +75,12 @@ async function traiter(req, res) {
     /* gestes des huit derniers jours, pour le bilan du vendredi */
     let semaine = [];
     try { semaine = await sql`SELECT point_id, action, valeur, fait_le FROM assistant_action WHERE fait_le >= now() - interval '8 days' AND action IN ('statut', 'fusion') ORDER BY fait_le`; } catch (e) { semaine = []; }
+    /* bilan du matin : le dernier jour relevé par api/bilan.js */
+    let bilan = [];
+    try { bilan = await sql`SELECT jour, nom, type, etat, ms, code, detail, incidents_24h, releve_le FROM assistant_bilan WHERE jour = (SELECT max(jour) FROM assistant_bilan) ORDER BY type DESC, nom`; } catch (e) { bilan = []; }
     let distincts = [];
     try { distincts = await sql`SELECT point_id, valeur FROM assistant_action WHERE action = 'pas_doublon'`; } catch (e) { distincts = []; }
-    return repondre(res, 200, { etats: etats, notes: notes, rappels: rappels, contacts: contacts, dossiers: dossiers, distincts: distincts, semaine: semaine });
+    return repondre(res, 200, { etats: etats, notes: notes, rappels: rappels, contacts: contacts, dossiers: dossiers, distincts: distincts, semaine: semaine, bilan: bilan });
   }
   if (req.method !== 'POST') return repondre(res, 405, { erreur: 'Méthode refusée.' });
 

@@ -1,0 +1,8 @@
+{
+  "name": "assistant",
+  "private": true,
+  "description": "ASSISTANT — tableau de bord des décisions et des sujets à trancher (FIDAL Notaires)",
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.4"
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "regions": ["cdg1"],
+  "functions": { "api/assistant.js": { "maxDuration": 15 } }
+}

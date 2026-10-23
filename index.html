@@ -167,6 +167,9 @@ section.niveau>h2 .barre{width:28px;height:4px}
 #bilan li .ap{font:11px var(--mono);letter-spacing:.06em;color:var(--doux);margin-right:.4rem}
 #bilan .vide{margin:0;padding:.5rem .7rem;font-size:13px}
 #bilan .pied{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.3rem}
+.matin{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .8rem;margin:.35rem 0 0;font-size:13px;color:var(--doux)}
+.matin .btn{padding:.2rem .5rem;font-size:10.5px}
+.matin .ko{color:var(--rouge)}
 .bilanPret{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem 1rem;border:1px solid var(--cyan);background:rgba(109,213,220,.07);padding:.6rem .9rem;margin:.9rem 0 0;max-width:60rem}
 .bilanPret p{margin:0;flex:1 1 18rem}
 @media (max-width:760px){ #bilan .chiffres{grid-template-columns:repeat(2,minmax(0,1fr))} }
@@ -388,6 +391,7 @@ section.niveau>h2 .barre{width:28px;height:4px}
     <div id="vueOutil">
     <p class="annonce" id="annonce" aria-live="polite">Lecture du journal…</p>
     <p class="etatlecture" id="etatLecture"></p>
+    <div class="matin" id="matin"></div>
     <div id="rappels"></div>
     <div class="bilanPret cache" id="bilanPret"><p><strong>Bilan de la semaine prêt.</strong> Les points tranchés, ceux en suspens et les rouges à régler avant le week-end.</p><button class="btn plein" type="button" id="voirBilan">Voir le bilan</button></div>
     <div class="accord cache" id="accord">
@@ -561,7 +565,7 @@ var JOUR = 86400000;
 var RAISONS = { panne: 'service en panne', echeance: 'échéance proche', blocage: 'bloque d’autres points' };
 
 var points = {}, applis = {}, etats = {}, notes = [], rappels = [], incidents = null, lectureOk = false;
-var agenda = null, repertoire = null, contacts = [], dossiers = [], distincts = {}, semaine = [];
+var agenda = null, repertoire = null, contacts = [], dossiers = [], distincts = {}, semaine = [], bilanMatin = [];
 var filtre = { appli: '', theme: '', urgence: '', lieu: '' };
 var dernierGeste = null, minuterieToast = null;
 
@@ -715,6 +719,7 @@ function lireEtats() {
     rappels = j.rappels || [];
     contacts = j.contacts || [];
     semaine = j.semaine || [];
+    bilanMatin = j.bilan || [];
     distincts = {}; (j.distincts || []).forEach(function (x) { distincts[x.point_id + '|' + x.valeur] = 1; });
     dossiers = j.dossiers || [];
     afficherRappels(); programmerRappels();
@@ -813,7 +818,9 @@ function afficher() {
   var pas = $('pastilleOutil');
   pas.textContent = tous.length; pas.classList.toggle('cache', !tous.length);
   pas.className = 'pastille' + (tous.length ? '' : ' cache') + (rouges ? ' rouge' : (oranges ? ' orange' : ''));
-  voyant($('vEtat'), incidents === null ? '' : (incidents.length ? 'rouge' : 'vert'),
+  var koMatin = bilanMatin.filter(function (b) { return b.etat === 'ko'; }).length;
+  if (incidents === null && bilanMatin.length) voyant($('vEtat'), koMatin ? 'rouge' : 'vert', koMatin ? pluriel(koMatin, 'élément en panne au relevé du matin', 'éléments en panne au relevé du matin') : 'Tout répondait au relevé du matin');
+  else voyant($('vEtat'), incidents === null ? '' : (incidents.length ? 'rouge' : 'vert'),
     incidents === null ? 'État des services inconnu (journal des incidents non joint)' : (incidents.length ? pluriel(incidents.length, 'incident en cours', 'incidents en cours') : 'Tous les services répondent'));
   voyant($('vUrgence'), rouges ? 'rouge' : (oranges ? 'orange' : 'vert'), rouges ? pluriel(rouges, 'point rouge', 'points rouges') : (oranges ? oranges + ' orange' : 'Rien d’urgent'));
   voyant($('vNote'), auPc ? 'orange' : 'vert', auPc ? pluriel(auPc, 'point à reprendre sur PC', 'points à reprendre sur PC') : 'Rien à reprendre sur PC');
@@ -840,6 +847,7 @@ function afficher() {
   l.innerHTML = html;
   afficherDoublons(tous);
   $('bilanPret').classList.toggle('cache', !bilanDeSaison());
+  afficherMatin();
   afficherGeneral();
 }
 
@@ -955,7 +963,8 @@ function cacherToast() { $('toast').classList.add('cache'); }
 function ouvrirFiche(ap) {
   var a = applis[ap]; if (!a) return;
   $('ficheTitre').textContent = ap;
-  var lignes = [['Adresse', a.adresse], ['Version en ligne', a.version], ['Dernière session', a.derniere_session ? new Date(a.derniere_session + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : ''], ['Sujet traité', a.sujet]];
+  var bm = bilanDe(ap);
+  var lignes = [['Adresse', a.adresse], ['Ce matin', bm ? phraseBilan(bm) : ''], ['Version en ligne', a.version], ['Dernière session', a.derniere_session ? new Date(a.derniere_session + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : ''], ['Sujet traité', a.sujet]];
   $('ficheCorps').innerHTML = lignes.filter(function (l) { return l[1]; }).map(function (l) { return '<dt>' + esc(l[0]) + '</dt><dd>' + esc(l[1]) + '</dd>'; }).join('') || '<dd>Aucune information inscrite.</dd>';
   var ouvrir = $('ficheOuvrir');
   if (/^https:\/\//.test(a.adresse || '')) { ouvrir.href = a.adresse; ouvrir.textContent = 'Ouvrir ' + ap; ouvrir.classList.remove('cache'); } else ouvrir.classList.add('cache');
@@ -1463,6 +1472,34 @@ $('formContact').addEventListener('submit', function (ev) {
       function (e) { $('contactErreur').textContent = 'Ajout impossible : ' + e.message; });
 });
 
+/* ---------- relevé du matin (api/bilan.js, une tâche par jour pour toute la suite) ---------- */
+function cleNom(t) { return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim(); }
+function bilanDe(appli) { var k = cleNom(appli); return bilanMatin.filter(function (b) { return cleNom(b.nom) === k; })[0] || null; }
+function phraseBilan(b) {
+  var e = { ok: 'répond', lent: 'répond lentement', degrade: 'répond, en mode dégradé', ko: 'injoignable', inconnu: 'état inconnu' }[b.etat] || b.etat;
+  return e + (b.ms && b.etat !== 'ko' ? ' (' + b.ms + ' ms)' : '') + (b.incidents_24h ? ', ' + pluriel(b.incidents_24h, 'incident', 'incidents') + ' sur 24 h' : '') + (b.detail && b.etat !== 'ok' ? ' — ' + b.detail : '');
+}
+function afficherMatin() {
+  var el = $('matin'); if (!el) return;
+  if (!bilanMatin.length) { el.innerHTML = '<span>Pas encore de relevé du matin.</span> <button class="btn" type="button" id="releverMatin">Relever maintenant</button>'; return; }
+  var services = bilanMatin.filter(function (b) { return b.type === 'service'; }), sources = bilanMatin.filter(function (b) { return b.type === 'source'; });
+  var ko = bilanMatin.filter(function (b) { return b.etat === 'ko'; });
+  var quand = bilanMatin[0].releve_le ? new Date(bilanMatin[0].releve_le) : null;
+  var jour = quand && quand.toDateString() === new Date().toDateString() ? 'à ' + heureCourte(quand.toISOString()) : (quand ? 'le ' + quand.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : '');
+  el.innerHTML = '<span>Relevé du matin ' + esc(jour) + ' : ' + pluriel(services.filter(function (b) { return b.etat !== 'ko'; }).length, 'service répond', 'services répondent') + ' sur ' + services.length
+    + ', ' + pluriel(sources.filter(function (b) { return b.etat !== 'ko'; }).length, 'source', 'sources') + ' sur ' + sources.length + '.</span>'
+    + (ko.length ? ' <span class="ko">En panne : ' + esc(ko.map(function (b) { return b.nom; }).join(', ')) + '.</span>' : '')
+    + ' <button class="btn" type="button" id="releverMatin">Relever maintenant</button>';
+}
+document.addEventListener('click', function (ev) {
+  if (!ev.target.closest || !ev.target.closest('#releverMatin')) return;
+  var b = ev.target.closest('#releverMatin'); b.disabled = true; b.textContent = 'Relevé en cours…';
+  fetch('/api/bilan', { method: 'POST', headers: { 'x-assistant-code': sessionStorage.getItem(CLE) || '' } })
+    .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok && !j.releves) throw new Error(j.erreur || ('Erreur ' + r.status)); return j; }); })
+    .then(function (j) { montrerToast('Relevé fait : ' + pluriel(j.releves || 0, 'élément relevé', 'éléments relevés') + (j.en_panne && j.en_panne.length ? ', en panne : ' + j.en_panne.join(', ') : '') + '.', true); return lireEtats(); })
+    .then(afficher, function (e) { montrerToast('Relevé impossible : ' + e.message, true); afficherMatin(); });
+});
+
 /* ---------- bilan du vendredi (23/10/2026) : points tranchés, en suspens, rouges non réglés avant le week-end ----------
    Tant que Genapi n'a pas donné son accord, l'ASSISTANT n'envoie pas de courriel : le bilan s'affiche dans l'appli
    à partir du vendredi 16 h (et tout le week-end), et un bouton l'ouvre en brouillon dans Outlook, adressé à JFD. */
@@ -1606,7 +1643,7 @@ document.addEventListener('visibilitychange', function () { if (!document.hidden
 montrerVue(location.hash.slice(1));
 if (sessionStorage.getItem(CLE)) charger(); else verrouiller('');
 
-window._assistant = { calculerBilan: calculerBilan, texteBilan: texteBilan, bilanDeSaison: bilanDeSaison, debutSemaine: debutSemaine, poserSemaine: function (s) { semaine = s; }, lesDoublons: lesDoublons, proches: proches, formuleAppel: formuleAppel, formulePolitesse: formulePolitesse, qualiteParDefaut: qualiteParDefaut, dossierDe: dossierDe, texteComplet: texteComplet, poserGeneral: function (ag, rep, ct, ds) { agenda = ag; repertoire = rep; contacts = ct || []; dossiers = ds || []; afficherGeneral(); }, evaluer: evaluer, fusionner: fusionner, lireCommande: lireCommande, lireNote: lireNote, lireHeure: lireHeure, ordonner: ordonner, etats: function () { return etats; }, poser: function (p, a, e) { points = p; applis = a || {}; etats = e || {}; lectureOk = true; afficher(); } };
+window._assistant = { bilanDe: bilanDe, phraseBilan: phraseBilan, poserMatin: function (b) { bilanMatin = b; afficher(); }, calculerBilan: calculerBilan, texteBilan: texteBilan, bilanDeSaison: bilanDeSaison, debutSemaine: debutSemaine, poserSemaine: function (s) { semaine = s; }, lesDoublons: lesDoublons, proches: proches, formuleAppel: formuleAppel, formulePolitesse: formulePolitesse, qualiteParDefaut: qualiteParDefaut, dossierDe: dossierDe, texteComplet: texteComplet, poserGeneral: function (ag, rep, ct, ds) { agenda = ag; repertoire = rep; contacts = ct || []; dossiers = ds || []; afficherGeneral(); }, evaluer: evaluer, fusionner: fusionner, lireCommande: lireCommande, lireNote: lireNote, lireHeure: lireHeure, ordonner: ordonner, etats: function () { return etats; }, poser: function (p, a, e) { points = p; applis = a || {}; etats = e || {}; lectureOk = true; afficher(); } };
 })();
 </script>
 </body>

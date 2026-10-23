@@ -1,4 +1,8 @@
 {
   "regions": ["cdg1"],
-  "functions": { "api/assistant.js": { "maxDuration": 15 } }
+  "functions": {
+    "api/assistant.js": { "maxDuration": 15 },
+    "api/bilan.js": { "maxDuration": 60 }
+  },
+  "crons": [ { "path": "/api/bilan", "schedule": "0 5 * * *" } ]
 }

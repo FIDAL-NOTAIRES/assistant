@@ -72,9 +72,12 @@ async function traiter(req, res) {
     try { contacts = await sql`SELECT adresse, nom, qualite, civilite, prenom, ajoute, masque FROM assistant_contact`; } catch (e) { contacts = []; }
     /* lecture seule des dossiers de SUIVI ; si la table manque ou change, l'ASSISTANT continue sans */
     try { dossiers = await sql`SELECT id, intitule, partie1, partie2 FROM suivi_dossier WHERE etape NOT IN ('abandonne', 'clos')`; } catch (e) { dossiers = []; }
+    /* gestes des huit derniers jours, pour le bilan du vendredi */
+    let semaine = [];
+    try { semaine = await sql`SELECT point_id, action, valeur, fait_le FROM assistant_action WHERE fait_le >= now() - interval '8 days' AND action IN ('statut', 'fusion') ORDER BY fait_le`; } catch (e) { semaine = []; }
     let distincts = [];
     try { distincts = await sql`SELECT point_id, valeur FROM assistant_action WHERE action = 'pas_doublon'`; } catch (e) { distincts = []; }
-    return repondre(res, 200, { etats: etats, notes: notes, rappels: rappels, contacts: contacts, dossiers: dossiers, distincts: distincts });
+    return repondre(res, 200, { etats: etats, notes: notes, rappels: rappels, contacts: contacts, dossiers: dossiers, distincts: distincts, semaine: semaine });
   }
   if (req.method !== 'POST') return repondre(res, 405, { erreur: 'Méthode refusée.' });
 

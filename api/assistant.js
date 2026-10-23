@@ -4,6 +4,8 @@
 //                     { action: 'note', appli, texte }          note dictée → point N-<id>
 //                     { action: 'rappel', prevu_le, ids }       rappel des points à voir sur PC
 //                     { action: 'rappel_vu', id }
+//                     { action: 'contact', adresse, nom?, qualite?, civilite?, prenom?, ajoute?, masque? }  répertoire de l'ASSISTANT GÉNÉRAL
+// Le GET rend aussi les dossiers ouverts de SUIVI (même base, lecture seule) pour rapprocher les rendez-vous du jour.
 //                     { action: 'retrograde', id, valeur: true|false }
 // Accès : en-tête x-assistant-code comparé à la variable ASSISTANT_CODE_ADMIN (JFD seul).
 // Règle du report (23/10/2026) : un point reporté revient seul dans la liste au bout de TROIS JOURS,
@@ -64,7 +66,11 @@ async function traiter(req, res) {
     const etats = await sql`SELECT point_id, statut, reporte_jusqu, retrograde, maj_le FROM assistant_etat`;
     const notes = await sql`SELECT id, appli, texte, cree_le FROM assistant_note ORDER BY id`;
     const rappels = await sql`SELECT id, prevu_le, ids FROM assistant_rappel WHERE vu_le IS NULL ORDER BY prevu_le`;
-    return repondre(res, 200, { etats: etats, notes: notes, rappels: rappels });
+    let contacts = [], dossiers = [];
+    try { contacts = await sql`SELECT adresse, nom, qualite, civilite, prenom, ajoute, masque FROM assistant_contact`; } catch (e) { contacts = []; }
+    /* lecture seule des dossiers de SUIVI ; si la table manque ou change, l'ASSISTANT continue sans */
+    try { dossiers = await sql`SELECT id, intitule, partie1, partie2 FROM suivi_dossier WHERE etape NOT IN ('abandonne', 'clos')`; } catch (e) { dossiers = []; }
+    return repondre(res, 200, { etats: etats, notes: notes, rappels: rappels, contacts: contacts, dossiers: dossiers });
   }
   if (req.method !== 'POST') return repondre(res, 405, { erreur: 'Méthode refusée.' });
 
@@ -88,6 +94,26 @@ async function traiter(req, res) {
     if (!(n > 0)) return repondre(res, 400, { erreur: 'Rappel inconnu.' });
     await sql`UPDATE assistant_rappel SET vu_le = now() WHERE id = ${n} AND vu_le IS NULL`;
     return repondre(res, 200, { ok: true });
+  }
+  if (b.action === 'contact') {
+    const adresse = texte(b.adresse, 200).toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(adresse)) return repondre(res, 400, { erreur: 'Adresse invalide.' });
+    const QUALITES = ['confrere', 'client', 'prenom_vous', 'prenom_tu', 'collegue', 'aucune'];
+    const qualite = QUALITES.indexOf(b.qualite) >= 0 ? b.qualite : null;
+    const civilite = b.civilite === 'Madame' || b.civilite === 'Monsieur' ? b.civilite : null;
+    const nom = texte(b.nom, 120) || null, prenom = texte(b.prenom, 60) || null;
+    const ajoute = b.ajoute === true, masque = b.masque === true;
+    const r = await sql`INSERT INTO assistant_contact (adresse, nom, qualite, civilite, prenom, ajoute, masque, maj_le)
+      VALUES (${adresse}, ${nom}, ${qualite}, ${civilite}, ${prenom}, ${ajoute}, ${masque}, now())
+      ON CONFLICT (adresse) DO UPDATE SET
+        nom = COALESCE(EXCLUDED.nom, assistant_contact.nom),
+        qualite = COALESCE(EXCLUDED.qualite, assistant_contact.qualite),
+        civilite = COALESCE(EXCLUDED.civilite, assistant_contact.civilite),
+        prenom = COALESCE(EXCLUDED.prenom, assistant_contact.prenom),
+        ajoute = assistant_contact.ajoute OR EXCLUDED.ajoute,
+        masque = EXCLUDED.masque, maj_le = now()
+      RETURNING adresse, nom, qualite, civilite, prenom, ajoute, masque`;
+    return repondre(res, 200, { ok: true, contact: r[0] });
   }
   const id = String(b.id || '').trim();
   if (!/^[A-Za-z0-9._:-]{1,80}$/.test(id)) return repondre(res, 400, { erreur: 'Identifiant de point invalide.' });

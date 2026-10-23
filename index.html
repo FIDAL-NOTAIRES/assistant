@@ -268,6 +268,12 @@ section.niveau>h2 .barre{width:28px;height:4px}
 .onglet .qui{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .onglet .qualite{grid-column:1;font:10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--doux)}
 .onglet .attente{grid-row:1 / span 2;grid-column:2;font:10.5px var(--mono);color:var(--orange);border:1px solid var(--orange);padding:0 .3rem}
+.onglet .attente.douteux{border-style:dashed;color:var(--texte)}
+.redattente{border-left:3px solid var(--orange);background:var(--panneau2);padding:.55rem .75rem;margin:0 0 .8rem;font-size:13.5px;line-height:1.45}
+.redattente.douteux{border-left-style:dashed}
+.redattente p{margin:0 0 .45rem}
+.redattente .motif{color:var(--doux);font-size:12.5px}
+.redattente .actions{margin:0;display:flex;flex-wrap:wrap;gap:.4rem}
 .redaction{margin-top:1.4rem;background:var(--panneau);border:1px solid var(--filet2);padding:1rem 1.1rem;position:relative}
 .redaction::before{content:"";position:absolute;top:-1px;left:-1px;width:12px;height:12px;border:solid var(--cyan);border-width:2px 0 0 2px}
 .redtete{display:flex;justify-content:space-between;align-items:baseline;gap:1rem}
@@ -429,6 +435,7 @@ section.niveau>h2 .barre{width:28px;height:4px}
 
           <section id="redaction" class="redaction cache" aria-labelledby="redTitre">
             <div class="redtete"><h3 id="redTitre"></h3><button class="btn" type="button" id="redFermer">Fermer</button></div>
+            <div id="redAttente" class="redattente cache" role="status"></div>
             <div class="champs">
               <label for="redA">À</label><input id="redA" type="text" autocomplete="off">
               <label for="redCc">Copie</label><input id="redCc" type="text" autocomplete="off" placeholder="facultatif">
@@ -565,7 +572,7 @@ var JOUR = 86400000;
 var RAISONS = { panne: 'service en panne', echeance: 'échéance proche', blocage: 'bloque d’autres points' };
 
 var points = {}, applis = {}, etats = {}, notes = [], rappels = [], incidents = null, lectureOk = false;
-var agenda = null, repertoire = null, contacts = [], dossiers = [], distincts = {}, semaine = [], bilanMatin = [];
+var agenda = null, repertoire = null, contacts = [], dossiers = [], distincts = {}, semaine = [], bilanMatin = [], decisionsAttente = [];
 var filtre = { appli: '', theme: '', urgence: '', lieu: '' };
 var dernierGeste = null, minuterieToast = null;
 
@@ -718,6 +725,7 @@ function lireEtats() {
     notes = j.notes || [];
     rappels = j.rappels || [];
     contacts = j.contacts || [];
+    decisionsAttente = j.attentes || [];
     semaine = j.semaine || [];
     bilanMatin = j.bilan || [];
     distincts = {}; (j.distincts || []).forEach(function (x) { distincts[x.point_id + '|' + x.valeur] = 1; });
@@ -1239,8 +1247,20 @@ $('lancerVocal').addEventListener('click', function () { ouvrirRevue(true); });
        "evenements": [ { "debut": "…ISO…", "fin": "…ISO…", "objet": "…", "lieu": "…", "lien": "https://outlook…" } ] }
    Répertoire : fichier « repertoire-….json » du même dossier
      { "version": 1, "periode": "…", "contacts": [ { "adresse": "…", "nom": "…", "prenom": "…", "civilite": "Madame" | "Monsieur",
-       "qualite": "confrere" | "client" | "prenom_vous" | "prenom_tu" | "collegue", "envois": 12, "attente_depuis": "AAAA-MM-JJ" } ],
+       "qualite": "confrere" | "client" | "prenom_vous" | "prenom_tu" | "collegue", "envois": 12,
+         "attente": { "depuis": "…ISO du message reçu…", "statut": "due" | "a_valider", "objet": "…", "motif": "…" } } ],
        "signature": "texte de la signature de JFD (ajoutée au brouillon, Outlook ne la mettant pas sur un message prérempli)" }
+   RÉPONSES DUES (règles tranchées par JFD le 23/10/2026, appliquées au relevé par Claude ou par le pont) :
+     - un correspondant « attend » dès qu'il a écrit après la dernière vraie réponse de JFD : signalement IMMÉDIAT, sans délai ;
+     - les messages où JFD n'est qu'EN COPIE comptent ; les simples remerciements (« merci, bien reçu ») comptent aussi ;
+     - les messages d'absence et les accusés de réception sont ÉCARTÉS ;
+     - une réponse d'ATTENTE de JFD (« je reviens vers vous ») laisse le correspondant dans la liste (statut « due », motif
+       « réponse d'attente du … ») ; une VRAIE réponse l'en sort ; la distinction se fait par lecture fine de la seule réponse
+       de JFD (ni pièces jointes, ni fil) ;
+     - au MOINDRE DOUTE : statut « a_valider » ; le correspondant reste affiché et JFD tranche d'un clic (« réponse due » ou « réglé »).
+   L'ancien champ « attente_depuis » (AAAA-MM-JJ) est encore lu, comme statut « due ».
+   Les décisions de JFD sur une attente sont gardées dans Neon (assistant_action, action « attente », valeur « due|depuis »
+   ou « reglee|depuis ») : elles valent pour CE message ; un nouveau message du correspondant (autre « depuis ») repart à zéro.
    Les changements de JFD (ajout, retrait, formule corrigée) sont gardés dans Neon (assistant_contact).
    Les deux fichiers seront écrits par le pont des mails ; tant qu'il ne tourne pas, Claude les dépose pendant les sessions.
    Les formules d'appel et de politesse reprennent celles de JFD dans ses envois. Le message s'ouvre en BROUILLON dans
@@ -1290,6 +1310,44 @@ function lesContacts() {
     .map(function (c) { if (!c.qualite) c.qualite = qualiteParDefaut(c.adresse); return c; });
 }
 function joursDepuis(iso) { var d = debutJour(iso); return d ? Math.floor((debutJour(aujourdhui()) - d) / JOUR) : 0; }
+/* réponse due à un correspondant (règles du 23/10/2026, voir en tête du bloc) ; null = rien à faire */
+function attenteDe(c) {
+  if (!c) return null;
+  var a = c.attente && c.attente.depuis ? c.attente : (c.attente_depuis ? { depuis: c.attente_depuis, statut: 'due' } : null);
+  if (!a) return null;
+  var depuis = String(a.depuis), decision = '';
+  decisionsAttente.forEach(function (x) {
+    if (x.point_id !== c.adresse) return;
+    var p = String(x.valeur || '').split('|');
+    if (p.slice(1).join('|') === depuis) decision = p[0];
+  });
+  if (decision === 'reglee') return null;
+  return { depuis: depuis, statut: decision === 'due' ? 'due' : (a.statut === 'a_valider' ? 'a_valider' : 'due'),
+    valide: decision === 'due', objet: a.objet || '', motif: a.motif || '', jours: joursDepuis(depuis) };
+}
+function lesAttentes() { return lesContacts().filter(function (c) { return !!attenteDe(c); }); }
+function delaiCourt(j) { return j <= 0 ? 'auj.' : j + ' j'; }
+function dateCourte(iso) { var d = new Date(iso); return isNaN(d) ? String(iso || '') : d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }); }
+function afficherAttente(c) {
+  var z = $('redAttente'), at = attenteDe(c);
+  if (!at) { z.className = 'redattente cache'; z.innerHTML = ''; return; }
+  var douteux = at.statut === 'a_valider';
+  z.className = 'redattente' + (douteux ? ' douteux' : '');
+  z.innerHTML = '<p>' + (douteux ? '<strong>À valider :</strong> l’ASSISTANT n’a pas su dire si votre dernier message répondait vraiment. '
+      : '<strong>Réponse due</strong> ') + 'depuis le ' + esc(dateCourte(at.depuis)) + (at.objet ? ', « ' + esc(at.objet) + ' »' : '') + '.</p>'
+    + (at.motif ? '<p class="motif">' + esc(at.motif) + '</p>' : '')
+    + '<div class="actions">' + (douteux ? '<button class="btn" type="button" data-attente="due">Oui, une réponse est due</button> ' : '')
+    + '<button class="btn" type="button" data-attente="reglee">' + (douteux ? 'Non, c’est réglé' : 'Réglé, rien à répondre') + '</button></div>';
+}
+function deciderAttente(decision) {
+  var c = lesContacts().filter(function (x) { return x.adresse === contactOuvert; })[0], at = attenteDe(c);
+  if (!c || !at) return;
+  api('POST', { action: 'attente', adresse: c.adresse, depuis: at.depuis, decision: decision }).then(function () {
+    decisionsAttente.push({ point_id: c.adresse, valeur: decision + '|' + at.depuis });
+    afficherAttente(c); afficherGeneral();
+    montrerToast(decision === 'reglee' ? 'Correspondant retiré des réponses dues.' : 'Réponse due confirmée.', true);
+  }, function (e) { montrerToast('Non enregistré : ' + e.message, true); });
+}
 function normalTexte(t) { return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
 /* rapprochement d'un rendez-vous et d'un dossier ouvert de SUIVI, par le nom des parties cité dans l'objet */
 function dossierDe(objet) {
@@ -1325,18 +1383,21 @@ function afficherGeneral() {
 
   /* répertoire */
   var cs = lesContacts();
-  var dus = cs.filter(function (c) { return c.attente_depuis && joursDepuis(c.attente_depuis) > 2; });
+  var dus = cs.filter(function (c) { return !!attenteDe(c); });
+  var aValider = dus.filter(function (c) { return attenteDe(c).statut === 'a_valider'; }).length;
   $('etatRepertoire').textContent = repertoire ? (repertoire.periode ? 'Classement : ' + repertoire.periode + '.' : '') : (lectureOk ? 'Aucun répertoire déposé pour l’instant.' : '');
   $('onglets').innerHTML = cs.map(function (c) {
-    var j = c.attente_depuis ? joursDepuis(c.attente_depuis) : 0;
+    var at = attenteDe(c);
     return '<button class="onglet" type="button" role="tab" aria-selected="' + (contactOuvert === c.adresse) + '" data-contact="' + esc(c.adresse) + '" title="' + esc(c.adresse) + '">'
       + '<span class="qui">' + esc(c.nom || c.adresse) + '</span>'
-      + (j > 2 ? '<span class="attente" title="Réponse due depuis ' + j + ' jours">' + j + ' j</span>' : '')
+      + (at ? (at.statut === 'a_valider' ? '<span class="attente douteux" title="À valider : réponse due ou non ?">? ' + delaiCourt(at.jours) + '</span>'
+        : '<span class="attente" title="Réponse due depuis le ' + esc(dateCourte(at.depuis)) + '">' + delaiCourt(at.jours) + '</span>') : '')
       + '<span class="qualite">' + esc(QUALITES[c.qualite] || '') + '</span></button>';
   }).join('');
 
-  $('annonceG').innerHTML = ev ? '<strong>' + pluriel(restants, 'rendez-vous à venir', 'rendez-vous à venir') + '</strong> aujourd’hui' + (dus.length ? ', et ' + pluriel(dus.length, 'correspondant attend', 'correspondants attendent') + ' une réponse depuis plus de deux jours.' : '.')
-    : (dus.length ? '<strong>' + pluriel(dus.length, 'correspondant attend', 'correspondants attendent') + '</strong> une réponse depuis plus de deux jours.' : 'Programme du jour et correspondants.');
+  var phraseDus = dus.length ? pluriel(dus.length, 'correspondant attend', 'correspondants attendent') + ' une réponse' + (aValider ? ' (dont ' + aValider + ' à valider)' : '') : '';
+  $('annonceG').innerHTML = ev ? '<strong>' + pluriel(restants, 'rendez-vous à venir', 'rendez-vous à venir') + '</strong> aujourd’hui' + (dus.length ? ', et ' + phraseDus + '.' : '.')
+    : (dus.length ? '<strong>' + phraseDus + '</strong>.' : 'Programme du jour et correspondants.');
 
   /* bandeau : pastille = réponses dues ; voyants = services, réponses dues, rendez-vous restants */
   var pg = $('pastilleGeneral');
@@ -1353,6 +1414,7 @@ function ouvrirRedaction(adresse) {
   $('redA').value = c.adresse; $('redCc').value = ''; $('redObjet').value = ''; $('redCorps').value = '';
   $('redQualite').value = c.qualite || qualiteParDefaut(c.adresse);
   $('redaction').classList.remove('cache');
+  afficherAttente(c);
   afficherGeneral();
   if ($('redaction').scrollIntoView) $('redaction').scrollIntoView({ behavior: 'smooth', block: 'start' });
   $('redObjet').focus();
@@ -1404,7 +1466,7 @@ function afficherAccueil() {
   var maintenant = new Date();
   var ev = (agenda && agenda.date === aujourdhui() && Array.isArray(agenda.evenements)) ? agenda.evenements : null;
   var restants = ev ? ev.filter(function (e) { return new Date(e.fin || e.debut) > maintenant; }).length : 0;
-  var dus = lesContacts().filter(function (c) { return c.attente_depuis && joursDepuis(c.attente_depuis) > 2; }).length;
+  var dus = lesAttentes().length;
   var eg = $('etatAGeneral');
   eg.textContent = ev ? pluriel(restants, 'rendez-vous à venir', 'rendez-vous à venir') + (dus ? ', ' + pluriel(dus, 'réponse due', 'réponses dues') : '') : (dus ? pluriel(dus, 'réponse due', 'réponses dues') : '');
   eg.className = 'etat' + (dus ? ' orange' : '');
@@ -1437,6 +1499,7 @@ $('caseGeneral').addEventListener('click', function () { location.hash = 'genera
 window.addEventListener('hashchange', function () { montrerVue(location.hash.slice(1)); });
 $('onglets').addEventListener('click', function (ev) { var b = ev.target.closest('[data-contact]'); if (b) ouvrirRedaction(b.getAttribute('data-contact')); });
 $('redFermer').addEventListener('click', function () { $('redaction').classList.add('cache'); contactOuvert = null; afficherGeneral(); });
+$('redAttente').addEventListener('click', function (ev) { var b = ev.target.closest('[data-attente]'); if (b) deciderAttente(b.getAttribute('data-attente')); });
 $('redOutlook').addEventListener('click', function () { ouvrirBrouillon(false); });
 $('redWeb').addEventListener('click', function () { ouvrirBrouillon(true); });
 /* la formule choisie pour un correspondant est retenue pour les fois suivantes */

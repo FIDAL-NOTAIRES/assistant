@@ -4,6 +4,8 @@
 //                     { action: 'note', appli, texte }          note dictée → point N-<id>
 //                     { action: 'rappel', prevu_le, ids }       rappel des points à voir sur PC
 //                     { action: 'rappel_vu', id }
+//                     { action: 'fusion', id: <point gardé>, autre: <point retiré> }   doublon : l'autre passe en tranché
+//                     { action: 'pas_doublon', id, autre }                         les deux points ne seront plus rapprochés
 //                     { action: 'contact', adresse, nom?, qualite?, civilite?, prenom?, ajoute?, masque? }  répertoire de l'ASSISTANT GÉNÉRAL
 // Le GET rend aussi les dossiers ouverts de SUIVI (même base, lecture seule) pour rapprocher les rendez-vous du jour.
 //                     { action: 'retrograde', id, valeur: true|false }
@@ -70,7 +72,9 @@ async function traiter(req, res) {
     try { contacts = await sql`SELECT adresse, nom, qualite, civilite, prenom, ajoute, masque FROM assistant_contact`; } catch (e) { contacts = []; }
     /* lecture seule des dossiers de SUIVI ; si la table manque ou change, l'ASSISTANT continue sans */
     try { dossiers = await sql`SELECT id, intitule, partie1, partie2 FROM suivi_dossier WHERE etape NOT IN ('abandonne', 'clos')`; } catch (e) { dossiers = []; }
-    return repondre(res, 200, { etats: etats, notes: notes, rappels: rappels, contacts: contacts, dossiers: dossiers });
+    let distincts = [];
+    try { distincts = await sql`SELECT point_id, valeur FROM assistant_action WHERE action = 'pas_doublon'`; } catch (e) { distincts = []; }
+    return repondre(res, 200, { etats: etats, notes: notes, rappels: rappels, contacts: contacts, dossiers: dossiers, distincts: distincts });
   }
   if (req.method !== 'POST') return repondre(res, 405, { erreur: 'Méthode refusée.' });
 
@@ -94,6 +98,21 @@ async function traiter(req, res) {
     if (!(n > 0)) return repondre(res, 400, { erreur: 'Rappel inconnu.' });
     await sql`UPDATE assistant_rappel SET vu_le = now() WHERE id = ${n} AND vu_le IS NULL`;
     return repondre(res, 200, { ok: true });
+  }
+  if (b.action === 'fusion' || b.action === 'pas_doublon') {
+    const garde = String(b.id || '').trim(), autre = String(b.autre || '').trim();
+    if (!/^[A-Za-z0-9._:-]{1,80}$/.test(garde) || !/^[A-Za-z0-9._:-]{1,80}$/.test(autre) || garde === autre) return repondre(res, 400, { erreur: 'Points invalides.' });
+    if (b.action === 'pas_doublon') {
+      const [x, y] = [garde, autre].sort();
+      await sql`INSERT INTO assistant_action (point_id, action, valeur) VALUES (${x}, 'pas_doublon', ${y})`;
+      return repondre(res, 200, { ok: true });
+    }
+    /* fusion validée par JFD : le point retiré passe en « tranché » (rien n'est effacé), la trace dit avec quel point il a été fusionné */
+    const r = await sql`INSERT INTO assistant_etat (point_id, statut, reporte_jusqu, maj_le) VALUES (${autre}, 'tranche', ${null}, now())
+      ON CONFLICT (point_id) DO UPDATE SET statut = 'tranche', reporte_jusqu = NULL, maj_le = now()
+      RETURNING point_id, statut, reporte_jusqu, retrograde, maj_le`;
+    await sql`INSERT INTO assistant_action (point_id, action, valeur) VALUES (${autre}, 'fusion', ${garde})`;
+    return repondre(res, 200, { ok: true, etat: r[0] });
   }
   if (b.action === 'contact') {
     const adresse = texte(b.adresse, 200).toLowerCase();

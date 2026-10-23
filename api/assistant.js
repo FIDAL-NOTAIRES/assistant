@@ -1,9 +1,13 @@
 // ASSISTANT — fonction serveur unique (lot 1, ASSISTANT OUTIL, 23/10/2026).
 // GET  /api/assistant                                   → { etats: [...] }
-// POST /api/assistant { action: 'statut', id, statut }  statut = ouvert | tranche | reporte | pc
+// POST /api/assistant { action: 'statut', id, statut, jusqu? }  statut = ouvert | tranche | reporte | pc
+//                     { action: 'note', appli, texte }          note dictée → point N-<id>
+//                     { action: 'rappel', prevu_le, ids }       rappel des points à voir sur PC
+//                     { action: 'rappel_vu', id }
 //                     { action: 'retrograde', id, valeur: true|false }
 // Accès : en-tête x-assistant-code comparé à la variable ASSISTANT_CODE_ADMIN (JFD seul).
-// Règle du report (23/10/2026) : un point reporté revient seul dans la liste au bout de TROIS JOURS.
+// Règle du report (23/10/2026) : un point reporté revient seul dans la liste au bout de TROIS JOURS,
+// sauf report explicite (mode vocal : points « sur PC » reportés au LENDEMAIN À 9 H, date calculée par la page).
 'use strict';
 const crypto = require('crypto');
 
@@ -15,6 +19,13 @@ function db() {
 }
 const STATUTS = ['ouvert', 'tranche', 'reporte', 'pc'];
 const REPORT_JOURS = 3;
+const JOUR = 86400000;
+function texte(v, max) { const s = String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); return s ? s.slice(0, max) : ''; }
+function instantFutur(v) {
+  const t = Date.parse(String(v || ''));
+  if (isNaN(t) || t < Date.now() - 60000 || t > Date.now() + 31 * JOUR) return null;
+  return new Date(t).toISOString();
+}
 
 function codeValide(recu) {
   const attendu = process.env.ASSISTANT_CODE_ADMIN || '';
@@ -51,18 +62,44 @@ async function traiter(req, res) {
 
   if (req.method === 'GET') {
     const etats = await sql`SELECT point_id, statut, reporte_jusqu, retrograde, maj_le FROM assistant_etat`;
-    return repondre(res, 200, { etats: etats });
+    const notes = await sql`SELECT id, appli, texte, cree_le FROM assistant_note ORDER BY id`;
+    const rappels = await sql`SELECT id, prevu_le, ids FROM assistant_rappel WHERE vu_le IS NULL ORDER BY prevu_le`;
+    return repondre(res, 200, { etats: etats, notes: notes, rappels: rappels });
   }
   if (req.method !== 'POST') return repondre(res, 405, { erreur: 'Méthode refusée.' });
 
   const b = await corps(req);
+  if (b.action === 'note') {
+    const appli = texte(b.appli, 40).toUpperCase() || 'DIVERS';
+    const t = texte(b.texte, 2000);
+    if (!t) return repondre(res, 400, { erreur: 'Note vide.' });
+    const r = await sql`INSERT INTO assistant_note (appli, texte) VALUES (${appli}, ${t}) RETURNING id, appli, texte, cree_le`;
+    return repondre(res, 200, { ok: true, note: r[0] });
+  }
+  if (b.action === 'rappel') {
+    const quand = instantFutur(b.prevu_le);
+    if (!quand) return repondre(res, 400, { erreur: 'Heure de rappel invalide.' });
+    const ids = (Array.isArray(b.ids) ? b.ids : []).map(String).filter(x => /^[A-Za-z0-9._:-]{1,80}$/.test(x)).slice(0, 200);
+    const r = await sql`INSERT INTO assistant_rappel (prevu_le, ids) VALUES (${quand}, ${ids}) RETURNING id, prevu_le, ids`;
+    return repondre(res, 200, { ok: true, rappel: r[0] });
+  }
+  if (b.action === 'rappel_vu') {
+    const n = parseInt(b.id, 10);
+    if (!(n > 0)) return repondre(res, 400, { erreur: 'Rappel inconnu.' });
+    await sql`UPDATE assistant_rappel SET vu_le = now() WHERE id = ${n} AND vu_le IS NULL`;
+    return repondre(res, 200, { ok: true });
+  }
   const id = String(b.id || '').trim();
   if (!/^[A-Za-z0-9._:-]{1,80}$/.test(id)) return repondre(res, 400, { erreur: 'Identifiant de point invalide.' });
 
   if (b.action === 'statut') {
     const s = String(b.statut || '');
     if (STATUTS.indexOf(s) < 0) return repondre(res, 400, { erreur: 'Statut inconnu.' });
-    const jusqu = s === 'reporte' ? new Date(Date.now() + REPORT_JOURS * 86400000).toISOString() : null;
+    let jusqu = null;
+    if (s === 'reporte') {
+      jusqu = b.jusqu !== undefined ? instantFutur(b.jusqu) : new Date(Date.now() + REPORT_JOURS * JOUR).toISOString();
+      if (!jusqu) return repondre(res, 400, { erreur: 'Date de report invalide.' });
+    }
     const r = await sql`INSERT INTO assistant_etat (point_id, statut, reporte_jusqu, maj_le)
       VALUES (${id}, ${s}, ${jusqu}, now())
       ON CONFLICT (point_id) DO UPDATE SET statut = EXCLUDED.statut, reporte_jusqu = EXCLUDED.reporte_jusqu, maj_le = now()

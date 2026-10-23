@@ -151,6 +151,25 @@ section.niveau>h2 .barre{width:28px;height:4px}
 #revue .entendu.ecoute::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--rouge);margin-right:.5rem;box-shadow:0 0 8px var(--rouge)}
 #revue .pied{margin-top:1rem;display:flex;gap:.5rem}
 
+#bilan{position:fixed;inset:0;background:rgba(5,14,24,.97);z-index:40;overflow:auto;padding:calc(1.5rem + env(safe-area-inset-top,0px)) 1rem calc(1.5rem + env(safe-area-inset-bottom,0px))}
+#bilan .cadre{max-width:48rem;margin:0 auto;position:relative;border:1px solid var(--filet2);background:var(--panneau);padding:1.4rem 1.5rem}
+#bilan .cadre::before,#bilan .cadre::after{content:"";position:absolute;width:14px;height:14px;border-color:var(--cyan);border-style:solid}
+#bilan .cadre::before{top:-1px;left:-1px;border-width:2px 0 0 2px} #bilan .cadre::after{bottom:-1px;right:-1px;border-width:0 2px 2px 0}
+#bilan h2{font:normal 1.6rem Georgia,serif;margin:.2rem 0 .3rem}
+#bilan .chiffres{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.6rem;margin:1rem 0 .4rem}
+#bilan .chiffre{border:1px solid var(--filet);padding:.6rem .7rem}
+#bilan .chiffre b{display:block;font:normal 1.9rem/1.1 Georgia,serif}
+#bilan .chiffre span{font:11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--doux)}
+#bilan .chiffre.rouge b{color:var(--rouge)}
+#bilan h3{font:12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--doux);margin:1.2rem 0 .4rem;display:flex;gap:.6rem;align-items:center}
+#bilan h3::after{content:"";flex:1;height:1px;background:var(--filet)}
+#bilan ul{margin:0;padding-left:1.1rem} #bilan li{margin:.15rem 0}
+#bilan li .ap{font:11px var(--mono);letter-spacing:.06em;color:var(--doux);margin-right:.4rem}
+#bilan .vide{margin:0;padding:.5rem .7rem;font-size:13px}
+#bilan .pied{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.3rem}
+.bilanPret{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem 1rem;border:1px solid var(--cyan);background:rgba(109,213,220,.07);padding:.6rem .9rem;margin:.9rem 0 0;max-width:60rem}
+.bilanPret p{margin:0;flex:1 1 18rem}
+@media (max-width:760px){ #bilan .chiffres{grid-template-columns:repeat(2,minmax(0,1fr))} }
 #note{position:fixed;inset:0;background:rgba(5,14,24,.85);z-index:35;display:flex;align-items:center;justify-content:center;padding:1rem}
 #note .boite{max-width:34rem}
 #note textarea{width:100%;min-height:7rem;background:var(--nuit);border:1px solid var(--filet2);padding:.6rem .7rem;margin:.4rem 0 .8rem;resize:vertical;font:inherit;color:inherit}
@@ -360,6 +379,7 @@ section.niveau>h2 .barre{width:28px;height:4px}
         <button class="btn plein seul-outil" type="button" id="lancerRevue">Revue</button>
         <button class="btn seul-outil" type="button" id="lancerVocal">Revue à voix haute</button>
         <button class="btn seul-outil" type="button" id="dicterNote">Dicter une note</button>
+        <button class="btn seul-outil" type="button" id="ouvrirBilan">Bilan de la semaine</button>
         <button class="btn" type="button" id="actualiser">Actualiser</button>
         <button class="btn" type="button" id="verrouiller">Verrouiller</button>
       </div>
@@ -369,6 +389,7 @@ section.niveau>h2 .barre{width:28px;height:4px}
     <p class="annonce" id="annonce" aria-live="polite">Lecture du journal…</p>
     <p class="etatlecture" id="etatLecture"></p>
     <div id="rappels"></div>
+    <div class="bilanPret cache" id="bilanPret"><p><strong>Bilan de la semaine prêt.</strong> Les points tranchés, ceux en suspens et les rouges à régler avant le week-end.</p><button class="btn plein" type="button" id="voirBilan">Voir le bilan</button></div>
     <div class="accord cache" id="accord">
       <p>La lecture du journal passe par le Drive. Donnez l’accord Google une fois, dans la petite fenêtre qui va s’ouvrir.</p>
       <button class="btn plein" type="button" id="autoriser">Autoriser la lecture du Drive</button>
@@ -473,6 +494,19 @@ section.niveau>h2 .barre{width:28px;height:4px}
   </div>
 </div>
 
+<div id="bilan" class="cache" role="dialog" aria-modal="true" aria-labelledby="bilanTitre">
+  <div class="cadre">
+    <div class="date" id="bilanPeriode"></div>
+    <h2 id="bilanTitre">Bilan de la semaine</h2>
+    <div class="chiffres" id="bilanChiffres"></div>
+    <div id="bilanCorps"></div>
+    <div class="pied">
+      <button class="btn plein" type="button" id="bilanOutlook">Ouvrir en brouillon dans Outlook</button>
+      <button class="btn" type="button" id="bilanFermer">Fermer</button>
+    </div>
+  </div>
+</div>
+
 <div id="note" class="cache" role="dialog" aria-modal="true" aria-labelledby="noteTitre">
   <form class="boite" id="formNote">
     <h1 id="noteTitre">Note pour une appli</h1>
@@ -527,7 +561,7 @@ var JOUR = 86400000;
 var RAISONS = { panne: 'service en panne', echeance: 'échéance proche', blocage: 'bloque d’autres points' };
 
 var points = {}, applis = {}, etats = {}, notes = [], rappels = [], incidents = null, lectureOk = false;
-var agenda = null, repertoire = null, contacts = [], dossiers = [], distincts = {};
+var agenda = null, repertoire = null, contacts = [], dossiers = [], distincts = {}, semaine = [];
 var filtre = { appli: '', theme: '', urgence: '', lieu: '' };
 var dernierGeste = null, minuterieToast = null;
 
@@ -680,6 +714,7 @@ function lireEtats() {
     notes = j.notes || [];
     rappels = j.rappels || [];
     contacts = j.contacts || [];
+    semaine = j.semaine || [];
     distincts = {}; (j.distincts || []).forEach(function (x) { distincts[x.point_id + '|' + x.valeur] = 1; });
     dossiers = j.dossiers || [];
     afficherRappels(); programmerRappels();
@@ -804,6 +839,7 @@ function afficher() {
   if (!l.dataset.allume && vus.length) { l.dataset.allume = '1'; l.classList.add('allume'); setTimeout(function () { l.classList.remove('allume'); }, 900); }
   l.innerHTML = html;
   afficherDoublons(tous);
+  $('bilanPret').classList.toggle('cache', !bilanDeSaison());
   afficherGeneral();
 }
 
@@ -1427,6 +1463,66 @@ $('formContact').addEventListener('submit', function (ev) {
       function (e) { $('contactErreur').textContent = 'Ajout impossible : ' + e.message; });
 });
 
+/* ---------- bilan du vendredi (23/10/2026) : points tranchés, en suspens, rouges non réglés avant le week-end ----------
+   Tant que Genapi n'a pas donné son accord, l'ASSISTANT n'envoie pas de courriel : le bilan s'affiche dans l'appli
+   à partir du vendredi 16 h (et tout le week-end), et un bouton l'ouvre en brouillon dans Outlook, adressé à JFD. */
+function debutSemaine(d) { var x = new Date(d || new Date()); var j = (x.getDay() + 6) % 7; x.setDate(x.getDate() - j); x.setHours(0, 0, 0, 0); return x; }
+function bilanDeSaison(d) { d = d || new Date(); var j = d.getDay(); return (j === 5 && d.getHours() >= 16) || j === 6 || j === 0; }
+function pointParId(id) {
+  if (points[id]) return points[id];
+  var m = /^N-(\d+)$/.exec(id); if (m) { var n = notes.filter(function (x) { return String(x.id) === m[1]; })[0]; if (n) return pointDeNote(n); }
+  return { id: id, titre: id, appli: '' };
+}
+function calculerBilan(maintenant) {
+  maintenant = maintenant || new Date();
+  var debut = debutSemaine(maintenant);
+  var dernier = {};
+  semaine.forEach(function (a) { if (new Date(a.fait_le) >= debut) dernier[a.point_id] = a; });
+  var tranches = Object.keys(dernier).filter(function (id) {
+    var a = dernier[id], e = etats[id];
+    return (a.action === 'fusion' || (a.action === 'statut' && a.valeur === 'tranche')) && e && e.statut === 'tranche';
+  }).map(pointParId);
+  var reportes = Object.keys(dernier).filter(function (id) { return dernier[id].action === 'statut' && dernier[id].valeur === 'reporte'; }).length;
+  var ouverts = Object.keys(points).map(function (id) { return points[id]; }).concat(notes.map(pointDeNote));
+  var nouveaux = ouverts.filter(function (p) { var d = debutJour(p.inscrit_le); return d && d >= debut; }).length;
+  var tous = tousLesPoints();
+  var rouges = tous.filter(function (v) { return v.niveau === 'rouge'; });
+  return { debut: debut, fin: maintenant, tranches: tranches, reportes: reportes, nouveaux: nouveaux, suspens: tous, rouges: rouges,
+    oranges: tous.filter(function (v) { return v.niveau === 'orange'; }).length };
+}
+function texteBilan(b) {
+  var l = [];
+  l.push('Bilan de la semaine du ' + b.debut.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }) + ' au ' + b.fin.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }));
+  l.push('');
+  l.push(pluriel(b.tranches.length, 'point tranché', 'points tranchés') + ', ' + pluriel(b.reportes, 'reporté', 'reportés') + ', ' + pluriel(b.nouveaux, 'nouveau point inscrit', 'nouveaux points inscrits') + '.');
+  l.push(pluriel(b.suspens.length, 'point reste en suspens', 'points restent en suspens') + (b.rouges.length ? ', dont ' + pluriel(b.rouges.length, 'rouge', 'rouges') : '') + (b.oranges ? ' et ' + b.oranges + ' orange' : '') + '.');
+  if (b.rouges.length) { l.push(''); l.push('Rouges à régler avant le week-end :'); b.rouges.forEach(function (v) { l.push('- ' + v.appli + ' : ' + (v.p.titre || '') + (v.raisons.length ? ' (' + v.raisons.join(', ') + ')' : '')); }); }
+  if (b.tranches.length) { l.push(''); l.push('Tranchés cette semaine :'); b.tranches.forEach(function (p) { l.push('- ' + (p.appli ? String(p.appli).toUpperCase() + ' : ' : '') + (p.titre || p.id)); }); }
+  l.push(''); l.push('Tableau de bord : ' + location.origin + '/#outil');
+  return l.join('\n');
+}
+function ouvrirBilan() {
+  var b = calculerBilan();
+  $('bilanPeriode').textContent = 'Du ' + b.debut.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) + ' à aujourd’hui';
+  $('bilanChiffres').innerHTML = [[b.tranches.length, 'tranchés'], [b.reportes, 'reportés'], [b.nouveaux, 'nouveaux'], [b.rouges.length, 'rouges en suspens']].map(function (c, i) {
+    return '<div class="chiffre' + (i === 3 && c[0] ? ' rouge' : '') + '"><b>' + c[0] + '</b><span>' + c[1] + '</span></div>';
+  }).join('');
+  var h = '<h3>Rouges à régler avant le week-end</h3>' + (b.rouges.length ? '<ul>' + b.rouges.map(function (v) { return '<li><span class="ap">' + esc(v.appli) + '</span>' + esc(v.p.titre || '') + (v.raisons.length ? ' <span class="puce r">' + esc(v.raisons[0]) + '</span>' : '') + '</li>'; }).join('') + '</ul>' : '<p class="vide">Aucun rouge en suspens.</p>');
+  h += '<h3>En suspens</h3><p style="margin:0">' + esc(pluriel(b.suspens.length, 'point reste', 'points restent')) + ' ouverts' + (b.oranges ? ', dont ' + b.oranges + ' orange' : '') + '.</p>';
+  h += '<h3>Tranchés cette semaine</h3>' + (b.tranches.length ? '<ul>' + b.tranches.map(function (p) { return '<li><span class="ap">' + esc(String(p.appli || '').toUpperCase()) + '</span>' + esc(p.titre || p.id) + '</li>'; }).join('') + '</ul>' : '<p class="vide">Aucun point tranché depuis lundi.</p>');
+  $('bilanCorps').innerHTML = h;
+  $('bilan').classList.remove('cache'); $('bilanFermer').focus();
+}
+function adresseDeJFD() { var m = /[^\s@]+@fidal\.notaires\.fr/.exec(String((repertoire && repertoire.signature) || '')); return m ? m[0] : ''; }
+$('ouvrirBilan').addEventListener('click', ouvrirBilan);
+$('voirBilan').addEventListener('click', ouvrirBilan);
+$('bilanFermer').addEventListener('click', function () { $('bilan').classList.add('cache'); });
+$('bilanOutlook').addEventListener('click', function () {
+  var b = calculerBilan();
+  var objet = 'Bilan de la semaine — ASSISTANT — ' + b.fin.toLocaleDateString('fr-FR');
+  window.location.href = 'mailto:' + encodeURIComponent(adresseDeJFD()) + '?subject=' + encodeURIComponent(objet) + '&body=' + encodeURIComponent(texteBilan(b).replace(/\n/g, '\r\n'));
+});
+
 /* ---------- accès et chargement ---------- */
 function verrouiller(message) {
   sessionStorage.removeItem(CLE);
@@ -1460,7 +1556,7 @@ $('actualiser').addEventListener('click', function () { charger(); });
 $('autoriser').addEventListener('click', autoriserDrive);
 $('fermerFiche').addEventListener('click', fermerFiche);
 $('toastAnnuler').addEventListener('click', annuler);
-document.addEventListener('keydown', function (ev) { if (ev.key !== 'Escape') return; if (!$('revue').classList.contains('cache')) return fermerRevue(''); if (!$('note').classList.contains('cache')) return fermerNote(); fermerFiche(); });
+document.addEventListener('keydown', function (ev) { if (ev.key !== 'Escape') return; if (!$('bilan').classList.contains('cache')) return $('bilan').classList.add('cache'); if (!$('revue').classList.contains('cache')) return fermerRevue(''); if (!$('note').classList.contains('cache')) return fermerNote(); fermerFiche(); });
 $('fAppli').addEventListener('change', function () { filtre.appli = this.value; afficher(); });
 $('fTheme').addEventListener('change', function () { filtre.theme = this.value; afficher(); });
 ['fUrgence', 'fLieu'].forEach(function (id) {
@@ -1510,7 +1606,7 @@ document.addEventListener('visibilitychange', function () { if (!document.hidden
 montrerVue(location.hash.slice(1));
 if (sessionStorage.getItem(CLE)) charger(); else verrouiller('');
 
-window._assistant = { lesDoublons: lesDoublons, proches: proches, formuleAppel: formuleAppel, formulePolitesse: formulePolitesse, qualiteParDefaut: qualiteParDefaut, dossierDe: dossierDe, texteComplet: texteComplet, poserGeneral: function (ag, rep, ct, ds) { agenda = ag; repertoire = rep; contacts = ct || []; dossiers = ds || []; afficherGeneral(); }, evaluer: evaluer, fusionner: fusionner, lireCommande: lireCommande, lireNote: lireNote, lireHeure: lireHeure, ordonner: ordonner, etats: function () { return etats; }, poser: function (p, a, e) { points = p; applis = a || {}; etats = e || {}; lectureOk = true; afficher(); } };
+window._assistant = { calculerBilan: calculerBilan, texteBilan: texteBilan, bilanDeSaison: bilanDeSaison, debutSemaine: debutSemaine, poserSemaine: function (s) { semaine = s; }, lesDoublons: lesDoublons, proches: proches, formuleAppel: formuleAppel, formulePolitesse: formulePolitesse, qualiteParDefaut: qualiteParDefaut, dossierDe: dossierDe, texteComplet: texteComplet, poserGeneral: function (ag, rep, ct, ds) { agenda = ag; repertoire = rep; contacts = ct || []; dossiers = ds || []; afficherGeneral(); }, evaluer: evaluer, fusionner: fusionner, lireCommande: lireCommande, lireNote: lireNote, lireHeure: lireHeure, ordonner: ordonner, etats: function () { return etats; }, poser: function (p, a, e) { points = p; applis = a || {}; etats = e || {}; lectureOk = true; afficher(); } };
 })();
 </script>
 </body>
